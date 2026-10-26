@@ -5,6 +5,38 @@
 
 namespace placement {
 namespace {
+/** @brief 密集输入不枚举一亿级碰撞也必须保持精确计数和排序前缀；无输入，无返回值。 */
+TEST(AnalysisLegality,DenseAggregateCountRetainsSortedDetails) {
+    auto database=std::make_shared<DesignDatabase>(); // 20000个完全重叠对象的独立夹具。
+    database->datasetId="dense";database->rows={{0,0,2,0,1,1,10,Orientation::N,{}}};
+    for(NodeId id=0;id<20000;++id) { // 原始稳定ID。
+        Node node; // 不带站点条件的宏，隔离碰撞计数。
+        node.id=id;node.name="M"+std::to_string(id);node.kind=NodeKind::Macro;node.width=2;node.height=2;
+        database->nodes.push_back(node);database->originalPositions.push_back({1,0,Orientation::N});
+    }
+    Snapshot snapshot; // 所有对象完全相同的独立几何。
+    snapshot.database=database;snapshot.datasetId=database->datasetId;snapshot.positions=database->originalPositions;
+    const auto report=CheckLegality(snapshot,"all",10); // 详情仅10，不能改变199990000的完整计数。
+    EXPECT_EQ(report.totalCount,199990000U);
+    ASSERT_EQ(report.records.size(),10U);
+    for(NodeId index=0;index<10;++index) { // 前十个排序相交对应为(0,1)..(0,10)。
+        EXPECT_EQ(report.records[index].objectIds,(std::vector<NodeId>{0,index+1}));
+    }
+}
+/** @brief 边界侵入按物理εc而非缺失面积判断；无输入，无返回值。 */
+TEST(AnalysisBoundary,PhysicalDistanceTolerance) {
+    auto database=std::make_shared<DesignDatabase>(); // 独立单行几何。
+    database->datasetId="boundary";database->rows={{0,0,2,0,1,1,1000,Orientation::N,{}}};
+    Node node; // 保持固定方向的可移动宏，避免站点约束干扰边界判据。
+    node.id=0;node.name="M";node.kind=NodeKind::Macro;node.width=2;node.height=2;database->nodes={node};database->originalPositions={{0,0,Orientation::N}};
+    Snapshot snapshot; // 仅修改可移动宏位置。
+    snapshot.database=database;snapshot.datasetId=database->datasetId;snapshot.positions=database->originalPositions;
+    const double epsilon=collisionTolerance(*database); // 统一物理距离阈值。
+    snapshot.positions[0].x=-.5*epsilon;
+    EXPECT_EQ(CheckLegality(snapshot,"macro").totalCount,0U);
+    snapshot.positions[0].x=-2*epsilon;
+    EXPECT_EQ(CheckLegality(snapshot,"macro").countByType.at("OUT_OF_BOUNDS"),1U);
+}
 /** @brief 创建多行矩形core测试拓扑。 @param width 行宽，DU。 @param height core高，DU。 @param pitch 站点间距，DU。 @return 独占可写数据库。 */
 std::shared_ptr<DesignDatabase> makeDatabase(double width = 20.0, double height = 10.0, double pitch = 1.0) {
     auto database = std::make_shared<DesignDatabase>(); // 测试独占拓扑，发布给快照时转只读。
@@ -59,6 +91,13 @@ TEST(AnalysisMetrics, StageComparisonUsesCentersAndNullableImprovement) {
     EXPECT_DOUBLE_EQ(comparison.displacement[0], 5);
     EXPECT_DOUBLE_EQ(*comparison.after.meanDisplacement, 5);
     EXPECT_DOUBLE_EQ(*comparison.after.quadraticDisplacement, 25);
+    EXPECT_DOUBLE_EQ(*comparison.after.l1Displacement,7);
+    ASSERT_TRUE(comparison.after.standardDisplacement.has_value());
+    EXPECT_EQ(comparison.after.standardDisplacement->count,1U);
+    EXPECT_DOUBLE_EQ(comparison.after.standardDisplacement->mean,5);
+    ASSERT_TRUE(comparison.after.fixedDisplacement.has_value());
+    EXPECT_DOUBLE_EQ(comparison.after.fixedDisplacement->mean,0);
+    EXPECT_FALSE(comparison.after.macroDisplacement.has_value());
     EXPECT_FALSE(comparison.hpwlImprovement.has_value());
     after.datasetId = "other";
     EXPECT_THROW(CompareStages(before, after), Error);
@@ -148,6 +187,18 @@ TEST(AnalysisLegality, CancellationIsChecked) {
     ControlToken control; // 取消令牌。
     control.cancel();
     EXPECT_THROW(CheckLegality(makeSnapshot(database), "all", 100, &control), Error);
+}
+/** @brief TC-LG-01：行内总占用跨度超过容量时单独诊断，不依赖碰撞成功标记，无输入、无返回值。 */
+TEST(AnalysisLegality, RowCapacityIsCountedSeparatelyFromPairOverlap) {
+    auto database = makeDatabase(10, 2); // 容量10 DU的单行。
+    addNode(*database, "A", NodeKind::Standard, 6, 2, 0, 0);
+    addNode(*database, "B", NodeKind::Standard, 6, 2, 4, 0);
+    const ViolationReport report = CheckLegality(makeSnapshot(database)); // 总跨度12，超额2 DU。
+    EXPECT_EQ(report.countByType.at("ROW_CAPACITY"), 1U);
+    EXPECT_EQ(report.countByType.at("OVERLAP"), 1U);
+    for (const Violation& violation : report.records) { // 核对独立容量明细单位与对象。
+        if (violation.kind == "ROW_CAPACITY") { EXPECT_DOUBLE_EQ(violation.magnitude, 2); EXPECT_EQ(violation.objectIds.size(), 2U); }
+    }
 }
 } // namespace
 } // namespace placement

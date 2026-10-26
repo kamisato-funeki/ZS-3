@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {"name":"default","generator":"Unix Makefiles","binaryDir":"${sourceDir}/build/default","cacheVariables":{"CMAKE_BUILD_TYPE":"Release","BUILD_GUI":"ON","BUILD_TESTING":"ON"}},
+    {"name":"headless","inherits":"default","binaryDir":"${sourceDir}/build/headless","cacheVariables":{"BUILD_GUI":"OFF"}},
+    {"name":"debug","inherits":"default","binaryDir":"${sourceDir}/build/debug","cacheVariables":{"CMAKE_BUILD_TYPE":"Debug"}}
+  ],
+  "buildPresets": [{"name":"default","configurePreset":"default"},{"name":"headless","configurePreset":"headless"}],
+  "testPresets": [{"name":"default","configurePreset":"default","output":{"outputOnFailure":true}},{"name":"headless","configurePreset":"headless","output":{"outputOnFailure":true}}]
+}

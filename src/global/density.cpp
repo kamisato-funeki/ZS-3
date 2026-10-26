@@ -151,7 +151,7 @@ DensityModel::DensityModel(const DesignDatabase& database,const PositionState& r
         const Rect r=nodeRect(node,referencePositions.at(node.id)); ///< 方向后物理矩形。
         if(node.fixed) { if(r.area()>0) blockers.push_back(intersect(r,m.core)); continue; }
         if(r.area()<=0) continue;
-        if(r.width()>m.core.width()||r.height()>m.core.height()) Throw("INFEASIBLE","移动对象尺寸超过 core",node.name);
+        if(r.width()>m.core.width()||r.height()>m.core.height()) Throw("CAPACITY_INFEASIBLE","移动对象尺寸超过 core",node.name);
         sample.push_back({r.width(),r.height()});
         if(node.kind==NodeKind::Macro) macro+=r.area(); else standard+=r.area();
     }
@@ -159,10 +159,10 @@ DensityModel::DensityModel(const DesignDatabase& database,const PositionState& r
     for(const Rect& r:free) m.area+=r.area(); // r 为一块有效可放置矩形。
     m.realTotal=standard+config.targetDensity*macro;
     const double tolerance=1e-10*std::max(1.0,m.core.area()); ///< 仅用于面积浮点预检容差，DU²。
-    if(standard+macro>m.area+tolerance) Throw("INFEASIBLE","真实物理面积超过有效区域","global");
+    if(standard+macro>m.area+tolerance) Throw("CAPACITY_INFEASIBLE","真实物理面积超过有效区域","global");
     if(m.realTotal>config.targetDensity*m.area+tolerance) {
         const std::string minimum=m.area>macro?std::to_string(standard/(m.area-macro)):"不存在有限可行目标"; ///< 最小目标密度诊断。
-        Throw("TARGET_DENSITY_INFEASIBLE","目标密度不可行，最小密度估计="+minimum,"global",true);
+        Throw("CAPACITY_INFEASIBLE","目标密度不可行，最小密度估计="+minimum,"global",true);
     }
     double average=1; ///< 剪裁后面积样本均值，DU²；空样本不生成 filler。
     double ratio=1; ///< 剪裁后宽高比均值。

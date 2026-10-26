@@ -108,7 +108,8 @@ Snapshot RunGlobal(const Snapshot& initial,const Config& config,ControlToken& co
     if(initial.datasetId!=db.datasetId) Throw("INPUT_INVALID","快照数据集身份不匹配","global");
     const auto start=std::chrono::steady_clock::now(); ///< 当前任务起始单调时间。
     Snapshot snapshot=initial; ///< 唯一可发布的完整真实布局。
-    snapshot.stage="global";snapshot.iteration=0;snapshot.revision=initial.revision+1;snapshot.termination.clear();snapshot.legalitySummary.clear();snapshot.metrics=Metrics{};snapshot.fillerCapped=false;snapshot.gridNx=0;snapshot.gridNy=0;
+    try {
+    snapshot.stage="global";snapshot.iteration=0;snapshot.revision=initial.revision+1;snapshot.termination.clear();snapshot.globalTermination.clear();snapshot.legalitySummary.clear();snapshot.metrics=Metrics{};snapshot.fillerCapped=false;snapshot.gridNx=0;snapshot.gridNy=0;
     std::vector<NodeId> movable; ///< 明确排除固定节点的优化真实对象 ID。
     for(const Node& node:db.nodes) if(!node.fixed) movable.push_back(node.id); // node 为拓扑实体。
     control.safePoint();
@@ -116,7 +117,7 @@ Snapshot RunGlobal(const Snapshot& initial,const Config& config,ControlToken& co
     for(NodeId id:movable) if(nodeRect(db.nodes[id],initial.positions[id]).area()>0) positiveCharge=true; // id 为真实移动节点。
     if(movable.empty()||!positiveCharge) {
         const Hpwl h=hpwl(db,snapshot.positions,control); ///< 固定/空设计真实线长。
-        snapshot.metrics.hpwl=h.plain;snapshot.metrics.weightedHpwl=h.weighted;snapshot.metrics.overflow=0;snapshot.metrics.densityEnergy=0;snapshot.metrics.elapsedMs=0;snapshot.termination="converged";
+        snapshot.metrics.hpwl=h.plain;snapshot.metrics.weightedHpwl=h.weighted;snapshot.metrics.overflow=0;snapshot.metrics.densityEnergy=0;snapshot.metrics.elapsedMs=0;snapshot.termination="converged";snapshot.globalTermination="converged";
         if(sink) sink(snapshot);
         return snapshot;
     }
@@ -147,7 +148,7 @@ Snapshot RunGlobal(const Snapshot& initial,const Config& config,ControlToken& co
         snapshot.metrics.overflow=evaluation.density.overflow;snapshot.metrics.densityEnergy=evaluation.density.energy;
         snapshot.metrics.lambda=lambda;snapshot.metrics.gamma=gamma;snapshot.metrics.step=acceptedStep;
         snapshot.metrics.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-        snapshot.termination=termination;validatePositions(db,snapshot.positions);
+        snapshot.termination=termination;if(!termination.empty()) snapshot.globalTermination=termination;validatePositions(db,snapshot.positions);
         if(sink) sink(snapshot);
         control.safePoint();return h;
     };
@@ -235,5 +236,13 @@ Snapshot RunGlobal(const Snapshot& initial,const Config& config,ControlToken& co
         gamma=smoothing(current.density.overflow,binWidth);previousHpwl=now;
     }
     Throw("NUMERIC_FAILURE","全局迭代意外退出","global");
+    } catch(Error& error) {
+        if(error.code=="NUMERIC_FAILURE"||error.code=="CANCELLED") {
+            Snapshot diagnostic=snapshot; // 最后一次完整发布的位置，绝不包含半步或NaN候选。
+            diagnostic.stage="preview";diagnostic.termination=error.code;
+            error.diagnosticSnapshot=std::make_shared<const Snapshot>(std::move(diagnostic));
+        }
+        throw;
+    }
 }
 } // namespace placement

@@ -141,6 +141,14 @@ struct DesignDatabase {
     std::vector<std::string> auditWarnings; ///< 兼容映射、分类推断和非致命输入审计说明。
 };
 
+/** @brief 同一类别对象的独立位移统计；基准与当前使用单元中心，值类型可跨线程发布。 */
+struct DisplacementMetrics {
+    std::uint64_t count=0; ///< 参与比较对象数，零对象时外层使用nullopt。
+    double mean=0; ///< 平均欧氏位移，DU。
+    double maximum=0; ///< 最大欧氏位移，DU。
+    double l1=0; ///< 全部对象|dx|+|dy|之和，DU。
+    double quadratic=0; ///< 全部对象dx²+dy²之和，DU²。
+};
 /** @brief 同一快照几何的指标；未计算或不适用的指标使用 nullopt。 */
 struct Metrics {
     std::optional<double> hpwl; ///< 无权真实半周长线长，DU。
@@ -154,6 +162,10 @@ struct Metrics {
     std::optional<double> meanDisplacement; ///< 对可比可移动对象的平均欧氏位移，DU。
     std::optional<double> maxDisplacement; ///< 对可比可移动对象的最大欧氏位移，DU。
     std::optional<double> quadraticDisplacement; ///< 可比可移动对象位移平方和，DU²。
+    std::optional<double> l1Displacement; ///< 可移动对象横纵位移绝对值总和，DU。
+    std::optional<DisplacementMetrics> macroDisplacement; ///< 可移动宏分类位移，无宏时null。
+    std::optional<DisplacementMetrics> standardDisplacement; ///< 可移动标准单元分类位移，无对象时null。
+    std::optional<DisplacementMetrics> fixedDisplacement; ///< 输入固定对象分类位移，无固定对象时null。
 };
 
 /** @brief 完整提交的布局快照；发布后由 shared_ptr<const Snapshot> 持有，不保存 filler。 */
@@ -167,10 +179,12 @@ struct Snapshot {
     PositionState positions; ///< 与本次 metrics 同轮的真实节点位置。
     Metrics metrics; ///< 当前几何的已计算指标。
     std::string termination; ///< 终止原因；空字符串表示阶段仍在运行。
+    std::string globalTermination; ///< 上游全局终止原因，跨宏/标准任务和重载保留，空表示未运行。
     std::string legalitySummary; ///< 独立检查摘要；空字符串表示尚未检查。
     bool fillerCapped=false; ///< 是否因filler数量上限扩大粒度，导出必须记录。
     int gridNx=0; ///< 实际横向密度网格数，0表示尚未计算。
     int gridNy=0; ///< 实际纵向密度网格数，0表示尚未计算。
+    std::vector<std::string> adjustments; ///< 初始准备的位置变更审计，不修改数据库原始位置。
 };
 
 /** @brief 集中有效配置；值类型按任务复制，默认值与设计 04/05/07/08 一致。 */
@@ -212,6 +226,7 @@ public:
     std::string code; ///< 稳定大写错误代码，如 INPUT_INVALID/CANCELLED。
     std::string context; ///< 文件、对象、阶段等定位上下文，可为空。
     bool recoverable = false; ///< 是否允许用户修改配置或输入后重新发起。
+    std::shared_ptr<const Snapshot> diagnosticSnapshot; ///< 可空最后完整/最佳失败候选，明确非成功阶段，不持有filler。
     /** @brief 构造业务错误，不做日志或线程操作。
      * @param errorCode 稳定错误代码。 @param message 错误说明。
      * @param errorContext 定位上下文，可为空。 @param canRecover 是否可恢复。 */

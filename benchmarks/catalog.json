@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "datasets": [
+    {
+      "name": "adaptec1",
+      "aux": "../../综合设计III参考资料/任务2参考/BookShelf格式的解析/adaptec1/adaptec1.aux",
+      "datasetId": "e3b1c1204cbb4d8446154b4fe894b5c84960b267c54ab49be039521b92f93f2e",
+      "counts": {
+        "nodes": 211447,
+        "pins": 944053,
+        "nets": 221142,
+        "rows": 890,
+        "fixed": 543,
+        "macros": 0
+      },
+      "files": [
+        {
+          "sha256": "f67f5c798e5a58da3a7159ce7c3a2374e6177e9e1a7f799f2cdf5ac81b901b5d",
+          "size": 92
+        },
+        {
+          "sha256": "0cf59367a50a8f9da97a2a5ec87cb7b13a52282a73d05cdbd0c404ed2f740c85",
+          "size": 2998073
+        },
+        {
+          "sha256": "6a3f2fc3604571085db9be79c86eedbefaabcf1c1ebaec6acf8f8aa8d2886781",
+          "size": 35277314
+        },
+        {
+          "sha256": "b389170c484c2a77742b0399999c79c8a8ecf23885c642c3462c1a3478001296",
+          "size": 3278998
+        },
+        {
+          "sha256": "fdb44a90d48118c3d264ee212ff09ff70478beda1af32a5f98387ef350548cd0",
+          "size": 184419
+        },
+        {
+          "sha256": "b4a5ef40809a061293bd523948f89e1bba9bfad136e9f7c264f777d8acca851b",
+          "size": 126
+        }
+      ]
+    },
+    {
+      "name": "adaptec4",
+      "aux": "../../综合设计III参考资料/任务2参考/BookShelf格式的解析/adaptec4/adaptec4.aux",
+      "datasetId": "51b571829187c3b88412db897fa4aeac0aa459bfd67dd76826a2e3d85b9a9cd3",
+      "counts": {
+        "nodes": 496045,
+        "pins": 1912420,
+        "nets": 515951,
+        "rows": 1944,
+        "fixed": 1329,
+        "macros": 0
+      },
+      "files": [
+        {
+          "sha256": "0e259e089ae4c1a79dc27d7ec31eebbf9dadb52c4b893be1bbd616e03a6bf9d7",
+          "size": 92
+        },
+        {
+          "sha256": "cb41a149fd902b26bcbf48ea4819f31fdf39406f27d6a1c5a83554b11b8b6d4d",
+          "size": 7101729
+        },
+        {
+          "sha256": "4dde6d440d53154dc2ab5b38c0f78a153fcf44b6d652cd180132fce3cff6935c",
+          "size": 73361553
+        },
+        {
+          "sha256": "97d13a3408cf63b3e65146b456a2b2d60893eba307e54cfb5f4da4633c8cab49",
+          "size": 7844343
+        },
+        {
+          "sha256": "2d4b620ce797bf682aaf6db14835d527eb313071bdc8d3dd20e1ba2e8c54baa8",
+          "size": 401692
+        },
+        {
+          "sha256": "0e64b76496c416cbc4d77e1058b4d1983256f77d4e4c08244bf05a406b5852e8",
+          "size": 126
+        }
+      ]
+    }
+  ]
+}

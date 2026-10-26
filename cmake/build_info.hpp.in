@@ -1,0 +1,9 @@
+#pragma once
+namespace placement::build {
+/** @brief 构建时源提交，不含工作区差异；dirty单独表明来源尚有修改。 */
+inline constexpr const char* sourceCommit="@PLACEMENT_SOURCE_COMMIT@";
+/** @brief 构建时是否存在未提交源码/文档，防止把开发二进制冒充精确发布。 */
+inline constexpr bool sourceDirty=@PLACEMENT_SOURCE_DIRTY@;
+/** @brief 目标依赖锁文件原文，包含精确版本、来源与SHA-256，不引用临时路径。 */
+inline constexpr const char* dependencyLock=R"placement(@PLACEMENT_LOCK_CONTENT@)placement";
+}

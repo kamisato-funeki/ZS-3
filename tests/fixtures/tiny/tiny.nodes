@@ -1,0 +1,6 @@
+UCLA nodes 1.0
+NumNodes : 3
+NumTerminals : 1
+A 3 2
+B 3 2
+PORT 0 0 terminal

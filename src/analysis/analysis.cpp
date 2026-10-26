@@ -136,13 +136,27 @@ public:
     ViolationReport report; ///< 最终报告计数与范围。
     /** @brief 初始化收集范围。 @param scope all/macro。 @param limit 最大明细数。 */
     Reporter(const std::string& scope, std::size_t limit) : limit_(limit) { report.scope = scope; }
+    /** @brief 累加精确计数而不创建详情；用于已证明整棵子树相交的批量计数。
+     * @param kind 违规类型。 @param amount 本次唯一相交对数量。 无返回值。 */
+    void count(const std::string& kind,std::uint64_t amount) {report.totalCount+=amount;report.countByType[kind]+=amount;}
+    /** @brief 判断子树最小ID对应的OVERLAP是否可能进入排序前limit条。
+     * @param current 当前扫描ID。 @param minimum 子树最小ID。 @return 可能改善详情集合。 */
+    bool mayImprove(NodeId current,NodeId minimum) const {
+        if(limit_==0) return false;
+        if(details_.size()<limit_) return true;
+        const Violation& last=*std::prev(details_.end()); // 当前有界集合的最大排序键。
+        if(last.kind!="OVERLAP") return std::string("OVERLAP")<last.kind;
+        return std::vector<NodeId>{std::min(current,minimum),std::max(current,minimum)}<=last.objectIds;
+    }
+    /** @brief 仅维护详情，不改变已批量统计的计数。 @param violation 确切相交对记录。 无返回值。 */
+    void detail(Violation violation) {
+        if(limit_==0) return;
+        details_.insert(std::move(violation));
+        if(details_.size()>limit_) details_.erase(std::prev(details_.end()));
+    }
     /** @brief 增加一条独立违规并维护有界详情。 @param violation 完整记录值。 无返回值。 */
     void add(Violation violation) {
-        ++report.totalCount;
-        ++report.countByType[violation.kind];
-        if (limit_ == 0) return;
-        details_.insert(std::move(violation));
-        if (details_.size() > limit_) details_.erase(std::prev(details_.end()));
+        count(violation.kind,1);detail(std::move(violation));
     }
     /** @brief 完成报告。 @return 全部计数及至多 limit 条排序详情。 */
     ViolationReport finish() {
@@ -162,13 +176,64 @@ class ActiveIntervals {
         int left = -1; ///< 左子树编号。
         int right = -1; ///< 右子树编号。
         double maxUpper = 0.0; ///< 子树最大 uy，DU。
+        Rect bounds; ///< 子树矩形并集bbox，用于不相交剪枝。
+        Rect common; ///< 子树全部矩形的公共交集，可倒置；正面积命中证明整棵子树均相交。
+        NodeId minimumId=0; ///< 子树最小稳定ID，用于有界详情排序剪枝。
+        std::uint64_t count=1; ///< 子树活动节点数，用于密集聚集输入的精确批量计数。
     };
     std::vector<Entry> entries_; ///< 每次插入一个新条目，不复用地址。
     int root_ = -1; ///< 当前活动根节点。
     /** @brief 获取子树最大上界。 @param id 子树编号，可为-1。 @return 最大上界，空子树为负无穷。 */
     double maximum(int id) const { return id < 0 ? -std::numeric_limits<double>::infinity() : entries_[id].maxUpper; }
     /** @brief 更新子树增广值。 @param id 非空子树根。 无返回值。 */
-    void update(int id) { entries_[id].maxUpper = std::max({entries_[id].rectangle.uy, maximum(entries_[id].left), maximum(entries_[id].right)}); }
+    void update(int id) {
+        Entry& entry=entries_[id]; // 当前待更新节点，不跨vector扩容保留引用。
+        entry.maxUpper=std::max({entry.rectangle.uy,maximum(entry.left),maximum(entry.right)});
+        entry.bounds=entry.rectangle;entry.common=entry.rectangle;entry.minimumId=entry.id;entry.count=1;
+        for(const int child:{entry.left,entry.right}) { // 子树句柄，-1为空。
+            if(child<0) continue;
+            const Entry& subtree=entries_[child]; // 已更新的孩子增广值。
+            entry.bounds={std::min(entry.bounds.lx,subtree.bounds.lx),std::min(entry.bounds.ly,subtree.bounds.ly),std::max(entry.bounds.ux,subtree.bounds.ux),std::max(entry.bounds.uy,subtree.bounds.uy)};
+            entry.common={std::max(entry.common.lx,subtree.common.lx),std::max(entry.common.ly,subtree.common.ly),std::min(entry.common.ux,subtree.common.ux),std::min(entry.common.uy,subtree.common.uy)};
+            entry.minimumId=std::min(entry.minimumId,subtree.minimumId);entry.count+=subtree.count;
+        }
+    }
+    /** @brief 从已计数子树收集可能进入前limit的确切相交详情。
+     * @param root 子树。 @param query 查询框。 @param current 查询ID。 @param reporter 详情收集器。
+     * @param epsilon 距离容差。 @param control 可空取消。 @param work 访问计数。 无返回值。 */
+    void detailsAt(int root,const Rect& query,NodeId current,Reporter& reporter,double epsilon,ControlToken* control,std::size_t& work) const {
+        if(root<0) return;
+        if(control&&++work%4096==0) control->checkCancelled();
+        const Entry& entry=entries_[root]; // 子树只读增广几何。
+        if(!collides(entry.bounds,query,epsilon)||!reporter.mayImprove(current,entry.minimumId)) return;
+        detailsAt(entry.left,query,current,reporter,epsilon,control,work);
+        if(collides(entry.rectangle,query,epsilon)&&reporter.mayImprove(current,entry.id)) {
+            const Rect overlap=intersection(entry.rectangle,query); // 相交区域及精确面积，DU。
+            reporter.detail({"OVERLAP",{std::min(current,entry.id),std::max(current,entry.id)},overlap,overlap.area(),"实体正面积重叠"});
+        }
+        detailsAt(entry.right,query,current,reporter,epsilon,control,work);
+    }
+    /** @brief 精确统计子树相交；公共交集命中时可批量计数，避免聚集输入枚举数十亿对。
+     * @param root 子树。 @param query 查询框。 @param current 查询ID。 @param reporter 输出。
+     * @param epsilon 距离容差。 @param control 可空取消。 @param work 访问计数。 无返回值。 */
+    void countAt(int root,const Rect& query,NodeId current,Reporter& reporter,double epsilon,ControlToken* control,std::size_t& work) const {
+        if(root<0) return;
+        if(control&&++work%4096==0) control->checkCancelled();
+        const Entry& entry=entries_[root]; // 当前子树的边界和公共区域。
+        if(!collides(entry.bounds,query,epsilon)) return;
+        if(collides(entry.common,query,epsilon)) {
+            reporter.count("OVERLAP",entry.count);detailsAt(root,query,current,reporter,epsilon,control,work);return;
+        }
+        countAt(entry.left,query,current,reporter,epsilon,control,work);
+        if(collides(entry.rectangle,query,epsilon)) {
+            reporter.count("OVERLAP",1);
+            if(reporter.mayImprove(current,entry.id)) {
+                const Rect overlap=intersection(entry.rectangle,query); // 当前精确交集。
+                reporter.detail({"OVERLAP",{std::min(current,entry.id),std::max(current,entry.id)},overlap,overlap.area(),"实体正面积重叠"});
+            }
+        }
+        countAt(entry.right,query,current,reporter,epsilon,control,work);
+    }
     /** @brief 比较区间树稳定键。 @param left 左条目编号。 @param right 右条目编号。 @return 左键是否更小。 */
     bool less(int left, int right) const {
         return std::tie(entries_[left].rectangle.ly, entries_[left].id) < std::tie(entries_[right].rectangle.ly, entries_[right].id);
@@ -238,12 +303,22 @@ public:
         mixed = (mixed ^ (mixed >> 27U)) * 0x94d049bb133111ebULL;
         mixed ^= mixed >> 31U;
         const int added = static_cast<int>(entries_.size()); // 新增条目稳定句柄。
-        entries_.push_back({rectangle, id, mixed, -1, -1, rectangle.uy});
+        Entry entry; // 完整初始化的新活动条目，后续update生成子树统计。
+        entry.rectangle=rectangle;entry.id=id;entry.priority=mixed;entry.maxUpper=rectangle.uy;
+        entries_.push_back(entry);
+        update(added);
         root_ = insertAt(root_, added);
         return added;
     }
     /** @brief 删除已过 x 右边界的区间。 @param handle insert 返回的有效句柄。 无返回值。 */
     void erase(int handle) { root_ = eraseAt(root_, handle); }
+    /** @brief 将活动几何相交计数与有界详情加入报告。
+     * @param rectangle 当前扫描框。 @param id 稳定ID。 @param reporter 输出收集器。
+     * @param epsilon 距离容差。 @param control 可空取消。 无返回值。 */
+    void report(const Rect& rectangle,NodeId id,Reporter& reporter,double epsilon,ControlToken* control) const {
+        std::size_t work=0; // 当前查询访问节点数，控制取消批次。
+        countAt(root_,rectangle,id,reporter,epsilon,control,work);
+    }
     /** @brief 获取当前活动 y 相交对象。 @param rectangle 查询矩形。 @return 候选稳定NodeId。 */
     std::vector<NodeId> query(const Rect& rectangle) const {
         std::vector<NodeId> ids; // 查询命中集合。
@@ -296,26 +371,38 @@ Metrics ComputeMetrics(const Snapshot& snapshot, const Snapshot* baseline) {
     requireFinite(hpwl, "hpwl"); requireFinite(weighted, "weightedHpwl");
     metrics.hpwl = hpwl;
     metrics.weightedHpwl = weighted;
-    metrics.meanDisplacement.reset(); metrics.maxDisplacement.reset(); metrics.quadraticDisplacement.reset();
+    metrics.meanDisplacement.reset(); metrics.maxDisplacement.reset(); metrics.quadraticDisplacement.reset();metrics.l1Displacement.reset();
+    metrics.macroDisplacement.reset();metrics.standardDisplacement.reset();metrics.fixedDisplacement.reset();
     if (baseline) {
         double sum = 0.0; // 可移动真实节点欧氏位移和，DU。
         double maximum = 0.0; // 最大位移，DU。
         double quadratic = 0.0; // 位移平方和，DU²。
+        double l1=0; // 可移动对象L1位移总和，DU。
+        DisplacementMetrics macros; // 宏分类位移，mean在循环中暂存欧氏总和。
+        DisplacementMetrics standards; // 标准分类位移，mean在循环中暂存总和。
+        DisplacementMetrics fixed; // 固定对象分类位移。
         std::size_t count = 0; // 可比可移动实体数。
         for (std::size_t index = 0; index < database.nodes.size(); ++index) { // 对应NodeId的节点索引。
             const Node& node = database.nodes[index]; // 当前真实节点。
-            if (node.fixed || node.kind == NodeKind::Terminal) continue;
             const Rect current = nodeRect(node, snapshot.positions[index]); // 当前方向包围盒，DU。
             const Rect previous = nodeRect(baseline->database->nodes[index], baseline->positions[index]); // 参考方向包围盒，DU。
             const double dx = (current.lx - previous.lx) + (current.width() - previous.width()) * 0.5; // 中心横向变化，DU。
             const double dy = (current.ly - previous.ly) + (current.height() - previous.height()) * 0.5; // 中心纵向变化，DU。
             const double distance = std::hypot(dx, dy); // 当前节点欧氏位移，DU。
             requireFinite(distance, node.name);
+            DisplacementMetrics& category=node.fixed?fixed:node.kind==NodeKind::Macro?macros:standards; // 互斥对象类别。
+            ++category.count;category.mean+=distance;category.maximum=std::max(category.maximum,distance);category.l1+=std::abs(dx)+std::abs(dy);category.quadratic+=dx*dx+dy*dy;
+            if(node.fixed||node.kind==NodeKind::Terminal) continue;
             sum += distance; maximum = std::max(maximum, distance); quadratic += dx * dx + dy * dy;
+            l1+=std::abs(dx)+std::abs(dy);
             ++count;
         }
         requireFinite(sum, "displacement"); requireFinite(quadratic, "quadraticDisplacement");
-        if (count != 0) { metrics.meanDisplacement = sum / static_cast<double>(count); metrics.maxDisplacement = maximum; metrics.quadraticDisplacement = quadratic; }
+        if (count != 0) { metrics.meanDisplacement = sum / static_cast<double>(count); metrics.maxDisplacement = maximum; metrics.quadraticDisplacement = quadratic;metrics.l1Displacement=l1; }
+        for(DisplacementMetrics* category:{&macros,&standards,&fixed}) if(category->count) category->mean/=category->count; // 各分类独立归一化。
+        if(macros.count) metrics.macroDisplacement=macros;
+        if(standards.count) metrics.standardDisplacement=standards;
+        if(fixed.count) metrics.fixedDisplacement=fixed;
     }
     return metrics;
 }
@@ -351,11 +438,16 @@ ViolationReport CheckLegality(const Snapshot& snapshot, const std::string& scope
     std::vector<Rect> rows; // 原始行矩形集合，用作允许区域并集，DU。
     for (const RowSegment& row : database.rows) rows.push_back(rowRect(row)); // 当前行拓扑仅生成只读矩形。
     const RectIndex rowIndex(rows); // 行区域空间查询树，避免每个实例扫描所有行。
+    std::vector<Rect> toleratedRows=rows; // 每轴扩张εc后的允许区域，仅用于边界距离比较。
+    for(Rect& row:toleratedRows) {row.lx-=epsilon;row.ly-=epsilon;row.ux+=epsilon;row.uy+=epsilon;} // 当前允许行，DU。
+    const RectIndex toleratedRowIndex(toleratedRows); // 统一物理距离容差下的行并集查询树。
     std::vector<Rect> obstacles; // 硬阻挡范围，索引与数据库障碍顺序一致。
     for (const Obstacle& obstacle : database.obstacles) obstacles.push_back(obstacle.rect); // 当前输入障碍。
     const RectIndex obstacleIndex(obstacles); // 硬阻挡空间查询树。
     std::vector<Rect> rectangles(database.nodes.size()); // 按NodeId存储的有效物理包围盒，DU。
     std::vector<NodeId> entities; // 当前scope中有面积且数值有限的实体编号。
+    std::vector<long double> occupiedWidths(database.rows.size(), 0.0L); // 每条原始行内完整标准单元占用跨度总和，DU。
+    std::vector<std::vector<NodeId>> rowMembers(database.rows.size()); // 用于容量违规定位的标准单元稳定编号。
     for (std::size_t index = 0; index < database.nodes.size(); ++index) { // 稳定NodeId对应索引。
         if (control && index % 4096 == 0) control->checkCancelled();
         const Node& node = database.nodes[index]; // 当前拓扑节点。
@@ -380,7 +472,11 @@ ViolationReport CheckLegality(const Snapshot& snapshot, const std::string& scope
             std::vector<Rect> covered; // 行并集与实体相交的有效区域，DU。
             for (const std::size_t rowId : rowIndex.query(rectangle)) covered.push_back(intersection(rectangle, rows[rowId])); // 当前相交行的原始索引。
             const double missing = std::max(0.0, rectangle.area() - unionArea(covered)); // 位于允许区域外的面积，DU²。
-            if (missing > geometryEpsilon * geometryEpsilon) reporter.add({"OUT_OF_BOUNDS", {node.id}, rectangle, missing, "实体未完全落入可放置行并集: " + node.name});
+            std::vector<Rect> toleratedCoverage; // 应用距离容差后仍需被行并集覆盖的范围。
+            for(const std::size_t rowId:toleratedRowIndex.query(rectangle)) toleratedCoverage.push_back(intersection(rectangle,toleratedRows[rowId])); // 容差行索引。
+            const double remaining=std::max(0.0,rectangle.area()-unionArea(toleratedCoverage)); // 扩张允许区域后真正未覆盖面积，DU²。
+            const double rounding=32*std::numeric_limits<double>::epsilon()*std::max(1.0,rectangle.area()); // 仅抑制面积求和的机器舍入，不替代物理εc。
+            if (remaining > rounding) reporter.add({"OUT_OF_BOUNDS", {node.id}, rectangle, missing, "实体未完全落入可放置行并集: " + node.name});
         }
         if (rectangle.width() > 0 && rectangle.height() > 0) {
             for (const std::size_t obstacleId : obstacleIndex.query(rectangle)) { // 当前空间命中的硬阻挡索引。
@@ -403,6 +499,7 @@ ViolationReport CheckLegality(const Snapshot& snapshot, const std::string& scope
                 const bool compatible = std::abs(rectangle.height() - row.height) <= siteEpsilon && std::abs(row.siteWidth - row.sitePitch) <= siteEpsilon && std::abs(rectangle.width() - std::round(widthSites) * row.sitePitch) <= siteEpsilon; // 支持子集判定。
                 supported = supported || compatible;
                 if (std::abs(rectangle.ly - row.y) > siteEpsilon || std::abs(rectangle.height() - row.height) > siteEpsilon || rectangle.lx < rows[rowId].lx - siteEpsilon || rectangle.ux > rows[rowId].ux + siteEpsilon) continue;
+                if (!onRow) { occupiedWidths[rowId] += rectangle.width(); rowMembers[rowId].push_back(node.id); }
                 onRow = true;
                 const double residual = std::abs((rectangle.lx - row.xOrigin) - std::round((rectangle.lx - row.xOrigin) / row.sitePitch) * row.sitePitch); // 使用DU而非无量纲站点误差。
                 closestSite = std::min(closestSite, residual);
@@ -413,6 +510,13 @@ ViolationReport CheckLegality(const Snapshot& snapshot, const std::string& scope
             if (onRow && !onSite) reporter.add({"OFF_SITE", {node.id}, rectangle, closestSite, "横坐标未对齐原始站点网格: " + node.name});
             if (onRow && !orientationMatches) reporter.add({"ORIENTATION", {node.id}, rectangle, 1.0, "标准单元方向与候选行不兼容: " + node.name});
             if (!supported) reporter.add({"UNSUPPORTED_OBJECT", {node.id}, rectangle, 1.0, "不存在单高度整数站点宽度支持行: " + node.name});
+        }
+    }
+    if (scope == "all") {
+        for (std::size_t index = 0; index < database.rows.size(); ++index) { // 逐条独立核对原始行容量。
+            const double epsilonSite = siteTolerance(database, database.rows[index].sitePitch); // 该行跨度比较容差，DU。
+            const long double excess = occupiedWidths[index] - rows[index].width(); // 物理跨度超额，DU。
+            if (excess > epsilonSite) reporter.add({"ROW_CAPACITY", rowMembers[index], rows[index], static_cast<double>(excess), "原始行段内标准单元总占用跨度超过物理容量"});
         }
     }
     /** @brief 按左边界和稳定ID排序扫描对象。 @param left 左ID。 @param right 右ID。 @return 确定性x顺序。 */
@@ -433,10 +537,7 @@ ViolationReport CheckLegality(const Snapshot& snapshot, const std::string& scope
         if (control && processed++ % 4096 == 0) control->checkCancelled();
         const Rect& rectangle = rectangles[id]; // 当前实体范围，DU。
         while (!expiry.empty() && expiry.top().right <= rectangle.lx) { active.erase(expiry.top().handle); expiry.pop(); }
-        for (const NodeId other : active.query(rectangle)) { // x/y均相交的活动实体编号。
-            if (!collides(rectangle, rectangles[other], epsilon)) continue;
-            reporter.add({"OVERLAP", {std::min(id, other), std::max(id, other)}, intersection(rectangle, rectangles[other]), intersection(rectangle, rectangles[other]).area(), "实体正面积重叠"});
-        }
+        active.report(rectangle,id,reporter,epsilon,control);
         expiry.push({rectangle.ux, active.insert(rectangle, id)});
     }
     if (control) control->checkCancelled();

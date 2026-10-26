@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "seed": 42,
+  "max_iterations": 100,
+  "grid_nx": 64,
+  "grid_ny": 64,
+  "image_width": 800
+}

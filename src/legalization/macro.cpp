@@ -134,7 +134,7 @@ public:
         : reference_(reference), database_(*reference.database), control_(control), rows_(std::move(rows)), fixed_(std::move(fixed)),
           adjacency_(database_.nodes.size()), netHpwl_(database_.nets.size()), handles_(database_.nodes.size()), snapshot(reference) {
         snapshot.stage = "macro_preview"; snapshot.termination.clear(); snapshot.legalitySummary.clear();
-        snapshot.metrics.overflow.reset(); snapshot.metrics.densityEnergy.reset();
+        snapshot.metrics.overflow.reset(); snapshot.metrics.densityEnergy.reset();snapshot.metrics.lambda.reset();snapshot.metrics.gamma.reset();snapshot.metrics.step.reset();
         for (const Node& node : database_.nodes) { // 当前拓扑节点，仅可移动宏加入优化/动态索引。
             if (node.kind == NodeKind::Macro && !node.fixed) {
                 macros.push_back(node.id); handles_[node.id] = spatial_.emplace(snapshot.positions[node.id].x, node.id);
@@ -234,7 +234,7 @@ Snapshot LegalizeMacros(const Snapshot& global, const Config& config, ControlTok
         Snapshot result = global; // 已合法输入完整保留坐标，保证幂等。
         result.stage = "macro_legal"; result.termination = "completed"; result.legalitySummary = "legal";
         result.iteration = 0; result.revision = global.revision + 1;
-        result.metrics.overflow.reset(); result.metrics.densityEnergy.reset();
+        result.metrics.overflow.reset(); result.metrics.densityEnergy.reset();result.metrics.lambda.reset();result.metrics.gamma.reset();result.metrics.step.reset();
         result.metrics = ComputeMetrics(result, &global); result.metrics.elapsedMs = 0;
         if (sink) sink(result);
         return result;
@@ -363,7 +363,10 @@ Snapshot LegalizeMacros(const Snapshot& global, const Config& config, ControlTok
         const ViolationReport report = CheckLegality(bestCandidate, "macro", 1, &control); // 未成功候选的独立诊断摘要。
         std::ostringstream context; // 错误上下文保留搜索预算、种子与候选违规，不能当作不可行证明。
         context << "seed=" << seed << ", attempts=" << attempts << ", best_overlap=" << bestComponents.overlap << ", violations=" << report.totalCount;
-        Throw("NO_LEGAL_SOLUTION_FOUND", "宏SA预算内未找到独立合法候选，未证明数学不可行", context.str(), true);
+        bestCandidate.stage="diagnostic";bestCandidate.termination="NO_LEGAL_SOLUTION_FOUND";
+        bestCandidate.metrics=ComputeMetrics(bestCandidate,&global);bestCandidate.legalitySummary="macro_violations="+std::to_string(report.totalCount);
+        Error error("NO_LEGAL_SOLUTION_FOUND", "宏SA预算内未找到独立合法候选，未证明数学不可行", context.str(), true); // 明确携带失败候选，不能进入成功阶段树。
+        error.diagnosticSnapshot=std::make_shared<const Snapshot>(bestCandidate);throw error;
     }
     Snapshot result = *bestLegal; // 只从独立检查通过的候选生成成功快照。
     validatePositions(database, result.positions);

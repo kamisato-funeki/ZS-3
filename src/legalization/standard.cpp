@@ -100,7 +100,7 @@ Snapshot LegalizeStandard(const Snapshot& macro, const std::vector<RowInterval>&
     const auto started = std::chrono::steady_clock::now(); // 单调耗时起点。
     Snapshot result = macro; // 当前任务独占候选位置，输入快照保持不变。
     result.stage = "standard_preview"; result.termination.clear(); result.legalitySummary.clear();
-    result.metrics.overflow.reset(); result.metrics.densityEnergy.reset();
+    result.metrics.overflow.reset(); result.metrics.densityEnergy.reset();result.metrics.lambda.reset();result.metrics.gamma.reset();result.metrics.step.reset();
     if (CheckLegality(macro, "all", 1, &control).totalCount == 0) {
         control.safePoint();
         result.stage = "standard_legal"; result.termination = "completed"; result.legalitySummary = "legal";

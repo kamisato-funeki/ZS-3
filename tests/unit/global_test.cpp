@@ -142,7 +142,7 @@ TEST(GlobalDensity,ConfigurationAndInfeasibleCapacity) {
     DensityModel model(db,db.originalPositions,config); ///< 上限为八的模型。
     EXPECT_EQ(model.gridNx(),32);EXPECT_EQ(model.gridNy(),64);EXPECT_EQ(model.fillerPositions().size(),8u);
     config.targetDensity=0.01;
-    try {DensityModel invalid(db,db.originalPositions,config);FAIL()<<"应拒绝容量";}catch(const Error& error){EXPECT_EQ(error.code,"TARGET_DENSITY_INFEASIBLE");} // error 为预期业务错误。
+    try {DensityModel invalid(db,db.originalPositions,config);FAIL()<<"应拒绝容量";}catch(const Error& error){EXPECT_EQ(error.code,"CAPACITY_INFEASIBLE");} // error 为预期业务错误。
 }
 /** @brief TC-GP：零 filler 电荷分支与极端宽高比的上限错误均显式处理。 */
 TEST(GlobalDensity,ZeroFillAndUnrepresentableFiller) {

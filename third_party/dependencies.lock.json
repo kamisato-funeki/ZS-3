@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "distribution": "Ubuntu 26.04 resolute amd64",
+  "limbo": {
+    "url": "https://github.com/limbo018/Limbo.git",
+    "commit": "6c115bfb1d4dca3a92044d505ee00456aac2bd45"
+  },
+  "packages": [
+    {
+      "name": "bison",
+      "version": "2:3.8.2+dfsg-1ubuntu0.26.04.1",
+      "file": "bison_2%3a3.8.2+dfsg-1ubuntu0.26.04.1_amd64.deb",
+      "sha256": "df3c66f15d5736094da21d45506c81027091c5a28f7b8f358bbef616a261a530"
+    },
+    {
+      "name": "cimg-dev",
+      "version": "3.5.2+dfsg-1build1",
+      "file": "cimg-dev_3.5.2+dfsg-1build1_all.deb",
+      "sha256": "cf28bdb127139760c04b1b06518cb60af188ec25435dc23d792797b148c16c9a"
+    },
+    {
+      "name": "flex",
+      "version": "2.6.4-8.2build2",
+      "file": "flex_2.6.4-8.2build2_amd64.deb",
+      "sha256": "622d3959e0424ca276a01946a44a30c327d4bd6963f96b070b94e9b80b541bb8"
+    },
+    {
+      "name": "googletest",
+      "version": "1.17.0-1build1",
+      "file": "googletest_1.17.0-1build1_all.deb",
+      "sha256": "d95efb69343d82eb823f82511c453319b1ff968b9e50a9af8362bec520953504"
+    },
+    {
+      "name": "klayout",
+      "version": "0.30.0-1build1",
+      "file": "klayout_0.30.0-1build1_amd64.deb",
+      "sha256": "846d279b2b7f7b05ee1681a1b57ea5481aa40991763bcdae04aa0e966814a7dc"
+    },
+    {
+      "name": "libboost1.90-dev",
+      "version": "1.90.0-6ubuntu1",
+      "file": "libboost1.90-dev_1.90.0-6ubuntu1_amd64.deb",
+      "sha256": "7b89698c907fd5d33ccd439674fa53803139923822181c87b910579827aca379"
+    },
+    {
+      "name": "libfftw3-dev",
+      "version": "3.3.10-2fakesync1build3",
+      "file": "libfftw3-dev_3.3.10-2fakesync1build3_amd64.deb",
+      "sha256": "6cc74000944d3e8b0da9349ff49024e47996770745d194b2419eed43c59ce300"
+    },
+    {
+      "name": "libgit2-1.9",
+      "version": "1.9.1+ds-1ubuntu1.3",
+      "file": "libgit2-1.9_1.9.1+ds-1ubuntu1.3_amd64.deb",
+      "sha256": "de4fdaf97cc1b3902a8d8ee7bb5ef7b7c9e26bf25752c73fc20db38cb1d5912c"
+    },
+    {
+      "name": "libgl-dev",
+      "version": "1.7.0-3",
+      "file": "libgl-dev_1.7.0-3_amd64.deb",
+      "sha256": "a8abfeb7fe6bcb9e868458d2347106bbc9ab0fecb54d92a5626f3612a2d2aef8"
+    },
+    {
+      "name": "libglx-dev",
+      "version": "1.7.0-3",
+      "file": "libglx-dev_1.7.0-3_amd64.deb",
+      "sha256": "749e75fa0f3ff4a1728f46ce7bffda7e0b9bec01987620e3befa4fb233ea6dff"
+    },
+    {
+      "name": "libgtest-dev",
+      "version": "1.17.0-1build1",
+      "file": "libgtest-dev_1.17.0-1build1_amd64.deb",
+      "sha256": "4a64ce2e5ee30a1f46aa57fbb10fa20358fed891f6b76210e9061b4f0352e9a4"
+    },
+    {
+      "name": "libopengl-dev",
+      "version": "1.7.0-3",
+      "file": "libopengl-dev_1.7.0-3_amd64.deb",
+      "sha256": "d5787403a681e87024550ef4faa8b0c9242b34ada581ec16e9b74c0eb3baec3c"
+    },
+    {
+      "name": "libqt5designer5",
+      "version": "5.15.18-1",
+      "file": "libqt5designer5_5.15.18-1_amd64.deb",
+      "sha256": "55ec38463c006c93bc9a7de10efe473df1a7a7a8bdbc547f5f39779f13aeeb4e"
+    },
+    {
+      "name": "libqt5multimedia5",
+      "version": "5.15.18-1",
+      "file": "libqt5multimedia5_5.15.18-1_amd64.deb",
+      "sha256": "9d4c5edca4b77e9c8ac432d50ed1d162bb2595efdc2eaba0579030bd4e95b936"
+    },
+    {
+      "name": "libqt5multimediawidgets5",
+      "version": "5.15.18-1",
+      "file": "libqt5multimediawidgets5_5.15.18-1_amd64.deb",
+      "sha256": "c21e954e785747f84963ca0e4d2a828c4112d24b812102fd44041e2b7e9ea830"
+    },
+    {
+      "name": "libqt5printsupport5t64",
+      "version": "5.15.18+dfsg-1ubuntu1",
+      "file": "libqt5printsupport5t64_5.15.18+dfsg-1ubuntu1_amd64.deb",
+      "sha256": "c6f802a5042b842c35422643042aa3b00fc601611461f2b1987b111ee8f83bf6"
+    },
+    {
+      "name": "libqt5sql5t64",
+      "version": "5.15.18+dfsg-1ubuntu1",
+      "file": "libqt5sql5t64_5.15.18+dfsg-1ubuntu1_amd64.deb",
+      "sha256": "3606bab5fb5250741b63e202fe95571076eb367726bca55e43263b1c31005fdd"
+    },
+    {
+      "name": "libqt5xml5t64",
+      "version": "5.15.18+dfsg-1ubuntu1",
+      "file": "libqt5xml5t64_5.15.18+dfsg-1ubuntu1_amd64.deb",
+      "sha256": "aeb5551f7ddb3b37c97a384ec485304384eed402d755a987f76a16d9d8a70462"
+    },
+    {
+      "name": "libqt5xmlpatterns5",
+      "version": "5.15.18-1",
+      "file": "libqt5xmlpatterns5_5.15.18-1_amd64.deb",
+      "sha256": "1f0ae65375820ae9d6be3c81f1dd290e4224d3ae7724db8fb10729ed6dca6413"
+    },
+    {
+      "name": "libqt6concurrent6",
+      "version": "6.10.2+dfsg-7",
+      "file": "libqt6concurrent6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "4b813739654ee58d1c3f882725ffca8c9c86e7067ef3998ec16cccc930d0235a"
+    },
+    {
+      "name": "libqt6openglwidgets6",
+      "version": "6.10.2+dfsg-7",
+      "file": "libqt6openglwidgets6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "8130e85a3592d967dc498c07106d1ab9ef867a8bdcf1c5b729ce22d226decbb3"
+    },
+    {
+      "name": "libqt6sql6",
+      "version": "6.10.2+dfsg-7",
+      "file": "libqt6sql6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "b4d6af7edbe9aa54ba1ab116ca6719e1219181fdb3b9fbb8a62282b215a995fc"
+    },
+    {
+      "name": "libqt6test6",
+      "version": "6.10.2+dfsg-7",
+      "file": "libqt6test6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "3270d1be7f3fe8b876f34f046b519c90cfa0dfd02320e299a355d7b94b99ba94"
+    },
+    {
+      "name": "libqt6xml6",
+      "version": "6.10.2+dfsg-7",
+      "file": "libqt6xml6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "073618699a6d75ab58fd8f50bab8f58d263acb58d1c6316988d4c6ec3c53d8ef"
+    },
+    {
+      "name": "libruby3.3",
+      "version": "3.3.8-2ubuntu3.1",
+      "file": "libruby3.3_3.3.8-2ubuntu3.1_amd64.deb",
+      "sha256": "d70e2584891d52296f80f7713ece0750011726f0722f4fb83722c4e5b6a76621"
+    },
+    {
+      "name": "libvulkan-dev",
+      "version": "1.4.341.0-1",
+      "file": "libvulkan-dev_1.4.341.0-1_amd64.deb",
+      "sha256": "41d22a62e3cd03f59b54e159cd15091cf8a7535d91332b8815e114102d2db988"
+    },
+    {
+      "name": "m4",
+      "version": "1.4.21-1",
+      "file": "m4_1.4.21-1_amd64.deb",
+      "sha256": "1890e37e38fd64bc10630e508f4a013a76bddbe05be2ed89e68df28463712b55"
+    },
+    {
+      "name": "nlohmann-json3-dev",
+      "version": "3.12.0.really.3.12.0.really.3.11.3-3build1",
+      "file": "nlohmann-json3-dev_3.12.0.really.3.12.0.really.3.11.3-3build1_all.deb",
+      "sha256": "d074e6107bef659ccfa169cb1d9e2e0daa9bcecfea84ce13c45812ff9cd58e9d"
+    },
+    {
+      "name": "qmake6-bin",
+      "version": "6.10.2+dfsg-7",
+      "file": "qmake6-bin_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "658372d70cb627dc52c99e174d50f7acd72ed3e35245fc22cd0ee66353456265"
+    },
+    {
+      "name": "qmake6",
+      "version": "6.10.2+dfsg-7",
+      "file": "qmake6_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "bbccf39041c68eb62beff40742f5ff831f2453a4d922492aa92ec3bb047cb7dd"
+    },
+    {
+      "name": "qt6-base-dev-tools",
+      "version": "6.10.2+dfsg-7",
+      "file": "qt6-base-dev-tools_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "f75b03bc0f4c294d8b54d44a7fc4eeeb3a75b92b9fe13656cbb426f22f98a6f0"
+    },
+    {
+      "name": "qt6-base-dev",
+      "version": "6.10.2+dfsg-7",
+      "file": "qt6-base-dev_6.10.2+dfsg-7_amd64.deb",
+      "sha256": "37a09d02275eedbefec63c7d71dd6c310077d7feb6609fa938a4a8e0572762a7"
+    }
+  ]
+}
