@@ -1,0 +1,698 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-26",
+  "environment": {
+    "os": "Ubuntu 26.04 amd64",
+    "kernel": "7.0.0-31-generic",
+    "machine": "VMware, Intel Core i7-14700HX exposed 8 vCPU, 7376 MiB RAM",
+    "compiler": "GCC 15.2.0",
+    "cmake": "4.2.3",
+    "qt": "6.10.2 offscreen",
+    "cache": "uncontrolled filesystem cache; not a cold-cache claim"
+  },
+  "datasets": {
+    "adaptec1": {
+      "gui": {
+        "datasetId": "e3b1c1204cbb4d8446154b4fe894b5c84960b267c54ab49be039521b92f93f2e",
+        "load_ms": 2877.435235,
+        "first_interactive_ms": 7154.603734,
+        "frame_p50_ms": 33.767758,
+        "frame_p95_ms": 67.136967,
+        "hit_p95_ms": 0.097012,
+        "peak_rss_kib": 412984,
+        "scene_items": 4097,
+        "view_target_met": true,
+        "input_target_met": true,
+        "global_iterations": 1,
+        "global_termination": "max_iterations",
+        "global_ms": 3276.997237,
+        "overlapping_navigation_samples": 79,
+        "samples": 100,
+        "viewport": [
+          1024,
+          720
+        ],
+        "platform": "offscreen",
+        "coarse_transitions": 0,
+        "lod": "4096 standard-cell subpixel aggregates; macro/fixed exact",
+        "effective_config": {
+          "abacus_candidate_rows": "all",
+          "backtrack_limit": 20,
+          "convergence_window": 5,
+          "fft_threads": 1,
+          "filler_limit": 20000,
+          "gds_dbu_um": 0.001,
+          "grid_nx": 32,
+          "grid_ny": 32,
+          "image_width": 1600,
+          "initial_mode": "auto",
+          "lambda_max": 100000000.0,
+          "lambda_min": 1e-08,
+          "lambda_update_max": 1.1,
+          "lambda_update_min": 0.75,
+          "macro_displacement_weight": 0.1,
+          "macro_hpwl_weight": 1.0,
+          "macro_overlap_weight": 10.0,
+          "macro_overlap_weight_max": 1000000.0,
+          "macro_seed": null,
+          "macro_sweeps": 100,
+          "margin": 24,
+          "max_iterations": 1,
+          "microns_per_du": null,
+          "moves_per_macro": 20,
+          "overflow_stop": 0.0,
+          "preview_hz": 5,
+          "schemaVersion": 1,
+          "seed": 42,
+          "shrink": 0.5,
+          "stagnation_window": 20,
+          "target_density": 0.8
+        }
+      },
+      "profile": {
+        "abacus": {
+          "iterations": 128,
+          "ms": 2.19607,
+          "nodes": 128,
+          "rows": 16,
+          "rss_kib": 212720,
+          "violations": 0
+        },
+        "dct_roundtrip_ms": [
+          0.034204,
+          0.034804,
+          0.042805
+        ],
+        "density_energy": 3851108551331.2666,
+        "density_with_fft_ms": [
+          225.852712,
+          226.170351,
+          277.684695
+        ],
+        "global_iterations": 20,
+        "global_ms": 37090.051252,
+        "global_termination": "max_iterations",
+        "iterations": [
+          {
+            "elapsed_ms": 1258.811012,
+            "hpwl": 2213041176.904742,
+            "iteration": 0,
+            "overflow": 0.2308133376562787,
+            "rss_kib": 256516
+          },
+          {
+            "elapsed_ms": 2827.760916,
+            "hpwl": 2211882753.786603,
+            "iteration": 1,
+            "overflow": 0.23041575653494958,
+            "rss_kib": 305880
+          },
+          {
+            "elapsed_ms": 4474.757231,
+            "hpwl": 2024619588.14065,
+            "iteration": 2,
+            "overflow": 0.19020528583866392,
+            "rss_kib": 307036
+          },
+          {
+            "elapsed_ms": 5919.364123,
+            "hpwl": 1844054915.7661636,
+            "iteration": 3,
+            "overflow": 0.1672840687115115,
+            "rss_kib": 307712
+          },
+          {
+            "elapsed_ms": 7771.381084,
+            "hpwl": 1731084626.2870243,
+            "iteration": 4,
+            "overflow": 0.15697083384081773,
+            "rss_kib": 308200
+          },
+          {
+            "elapsed_ms": 9317.586687,
+            "hpwl": 1622399500.7301302,
+            "iteration": 5,
+            "overflow": 0.13502760891884813,
+            "rss_kib": 308496
+          },
+          {
+            "elapsed_ms": 11407.413633,
+            "hpwl": 1525603766.3646038,
+            "iteration": 6,
+            "overflow": 0.12717388992268575,
+            "rss_kib": 308496
+          },
+          {
+            "elapsed_ms": 13514.917256,
+            "hpwl": 1445788095.3517475,
+            "iteration": 7,
+            "overflow": 0.1243792701030804,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 15539.35165,
+            "hpwl": 1386068276.4175208,
+            "iteration": 8,
+            "overflow": 0.1217730564749021,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 17500.977909,
+            "hpwl": 1339862384.7444608,
+            "iteration": 9,
+            "overflow": 0.11912355343319718,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 18800.729463,
+            "hpwl": 1286975450.111301,
+            "iteration": 10,
+            "overflow": 0.10890163881401523,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 21104.124208,
+            "hpwl": 1246806878.6366963,
+            "iteration": 11,
+            "overflow": 0.10835102912984523,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 23118.584373,
+            "hpwl": 1215213938.6387024,
+            "iteration": 12,
+            "overflow": 0.10746896119680348,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 24829.509961,
+            "hpwl": 1174496854.4190924,
+            "iteration": 13,
+            "overflow": 0.09781124498252337,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 27118.658151,
+            "hpwl": 1144100169.8216171,
+            "iteration": 14,
+            "overflow": 0.09640792341007803,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 28734.762462,
+            "hpwl": 1121165603.283626,
+            "iteration": 15,
+            "overflow": 0.09521777199281178,
+            "rss_kib": 310696
+          },
+          {
+            "elapsed_ms": 30261.291242,
+            "hpwl": 1101187716.5004478,
+            "iteration": 16,
+            "overflow": 0.0912637356504978,
+            "rss_kib": 315164
+          },
+          {
+            "elapsed_ms": 31837.620755,
+            "hpwl": 1085599043.3622706,
+            "iteration": 17,
+            "overflow": 0.08892923698238886,
+            "rss_kib": 315164
+          },
+          {
+            "elapsed_ms": 33104.056207,
+            "hpwl": 1064636121.2624304,
+            "iteration": 18,
+            "overflow": 0.08049987942373212,
+            "rss_kib": 315164
+          },
+          {
+            "elapsed_ms": 35243.655782,
+            "hpwl": 1048429154.9382923,
+            "iteration": 19,
+            "overflow": 0.07753209830292249,
+            "rss_kib": 315164
+          },
+          {
+            "elapsed_ms": 37066.131406,
+            "hpwl": 1033071589.7415204,
+            "iteration": 20,
+            "overflow": 0.07287086011299775,
+            "rss_kib": 315164
+          }
+        ],
+        "load_ms": 3081.748693,
+        "macro_sa": {
+          "iterations": 4000,
+          "ms": 39.205728,
+          "nodes": 2,
+          "rows": 5,
+          "rss_kib": 212720,
+          "violations": 0
+        },
+        "prepare_ms": 2418.575029,
+        "rss_after_global_kib": 212720,
+        "rss_before_global_kib": 218268,
+        "rss_before_micro_kib": 216104,
+        "scope": "external full topology global; separate synthetic SA/Abacus cost, not large-dataset legalization",
+        "wirelength_ms": [
+          148.981045,
+          149.783445,
+          165.041624
+        ],
+        "wirelength_value": 2213039458.8445787,
+        "effective_config": {
+          "abacus_candidate_rows": "all",
+          "backtrack_limit": 20,
+          "convergence_window": 5,
+          "fft_threads": 1,
+          "filler_limit": 20000,
+          "gds_dbu_um": 0.001,
+          "grid_nx": 32,
+          "grid_ny": 32,
+          "image_width": 1600,
+          "initial_mode": "auto",
+          "lambda_max": 100000000.0,
+          "lambda_min": 1e-08,
+          "lambda_update_max": 1.1,
+          "lambda_update_min": 0.75,
+          "macro_displacement_weight": 0.1,
+          "macro_hpwl_weight": 1.0,
+          "macro_overlap_weight": 10.0,
+          "macro_overlap_weight_max": 1000000.0,
+          "macro_seed": null,
+          "macro_sweeps": 100,
+          "margin": 24,
+          "max_iterations": 20,
+          "microns_per_du": null,
+          "moves_per_macro": 20,
+          "overflow_stop": 0.0,
+          "preview_hz": 5,
+          "schemaVersion": 1,
+          "seed": 42,
+          "shrink": 0.5,
+          "stagnation_window": 20,
+          "target_density": 0.8
+        }
+      }
+    },
+    "adaptec4": {
+      "gui": {
+        "datasetId": "51b571829187c3b88412db897fa4aeac0aa459bfd67dd76826a2e3d85b9a9cd3",
+        "load_ms": 7987.557506,
+        "first_interactive_ms": 31815.540536,
+        "frame_p50_ms": 29.846176,
+        "frame_p95_ms": 55.418224,
+        "hit_p95_ms": 0.119515,
+        "peak_rss_kib": 854184,
+        "scene_items": 4097,
+        "view_target_met": true,
+        "input_target_met": true,
+        "global_iterations": 1,
+        "global_termination": "max_iterations",
+        "global_ms": 6729.548191999999,
+        "overlapping_navigation_samples": 100,
+        "samples": 100,
+        "viewport": [
+          1024,
+          720
+        ],
+        "platform": "offscreen",
+        "coarse_transitions": 0,
+        "lod": "4096 standard-cell subpixel aggregates; macro/fixed exact",
+        "effective_config": {
+          "abacus_candidate_rows": "all",
+          "backtrack_limit": 20,
+          "convergence_window": 5,
+          "fft_threads": 1,
+          "filler_limit": 20000,
+          "gds_dbu_um": 0.001,
+          "grid_nx": 32,
+          "grid_ny": 32,
+          "image_width": 1600,
+          "initial_mode": "auto",
+          "lambda_max": 100000000.0,
+          "lambda_min": 1e-08,
+          "lambda_update_max": 1.1,
+          "lambda_update_min": 0.75,
+          "macro_displacement_weight": 0.1,
+          "macro_hpwl_weight": 1.0,
+          "macro_overlap_weight": 10.0,
+          "macro_overlap_weight_max": 1000000.0,
+          "macro_seed": null,
+          "macro_sweeps": 100,
+          "margin": 24,
+          "max_iterations": 1,
+          "microns_per_du": null,
+          "moves_per_macro": 20,
+          "overflow_stop": 0.0,
+          "preview_hz": 5,
+          "schemaVersion": 1,
+          "seed": 42,
+          "shrink": 0.5,
+          "stagnation_window": 20,
+          "target_density": 0.8
+        }
+      },
+      "profile": {
+        "abacus": {
+          "iterations": 128,
+          "ms": 2.926061,
+          "nodes": 128,
+          "rows": 16,
+          "rss_kib": 434204,
+          "violations": 0
+        },
+        "dct_roundtrip_ms": [
+          0.039105,
+          0.034304,
+          0.036804
+        ],
+        "density_energy": 4438425454228.807,
+        "density_with_fft_ms": [
+          668.853264,
+          580.54779,
+          582.839272
+        ],
+        "global_iterations": 20,
+        "global_ms": 84798.955833,
+        "global_termination": "max_iterations",
+        "iterations": [
+          {
+            "elapsed_ms": 2981.282422,
+            "hpwl": 10327143654.021318,
+            "iteration": 0,
+            "overflow": 0.05041782234854456,
+            "rss_kib": 565988
+          },
+          {
+            "elapsed_ms": 6005.344011,
+            "hpwl": 10326769421.378439,
+            "iteration": 1,
+            "overflow": 0.05040278019489227,
+            "rss_kib": 672604
+          },
+          {
+            "elapsed_ms": 9447.970444,
+            "hpwl": 10299942498.5371,
+            "iteration": 2,
+            "overflow": 0.049240309875133045,
+            "rss_kib": 673332
+          },
+          {
+            "elapsed_ms": 13151.419595,
+            "hpwl": 10265486356.866545,
+            "iteration": 3,
+            "overflow": 0.048127994783109244,
+            "rss_kib": 673332
+          },
+          {
+            "elapsed_ms": 16757.879403,
+            "hpwl": 10224342412.118696,
+            "iteration": 4,
+            "overflow": 0.0469595956305796,
+            "rss_kib": 678064
+          },
+          {
+            "elapsed_ms": 21223.710036,
+            "hpwl": 10188038421.999073,
+            "iteration": 5,
+            "overflow": 0.04610143800018713,
+            "rss_kib": 638416
+          },
+          {
+            "elapsed_ms": 25088.78819,
+            "hpwl": 10140320540.04375,
+            "iteration": 6,
+            "overflow": 0.04513018053117885,
+            "rss_kib": 674300
+          },
+          {
+            "elapsed_ms": 29177.972641,
+            "hpwl": 10084781831.448778,
+            "iteration": 7,
+            "overflow": 0.04406257746687199,
+            "rss_kib": 674452
+          },
+          {
+            "elapsed_ms": 33116.636257,
+            "hpwl": 10033779291.821178,
+            "iteration": 8,
+            "overflow": 0.043155167857615376,
+            "rss_kib": 674580
+          },
+          {
+            "elapsed_ms": 38141.181491,
+            "hpwl": 9988159257.339891,
+            "iteration": 9,
+            "overflow": 0.042396871059131404,
+            "rss_kib": 674596
+          },
+          {
+            "elapsed_ms": 41408.337416,
+            "hpwl": 9926059285.352276,
+            "iteration": 10,
+            "overflow": 0.04135768994535079,
+            "rss_kib": 674596
+          },
+          {
+            "elapsed_ms": 46765.857253,
+            "hpwl": 9862118114.88699,
+            "iteration": 11,
+            "overflow": 0.04037602582992492,
+            "rss_kib": 674668
+          },
+          {
+            "elapsed_ms": 50993.21872,
+            "hpwl": 9805907989.378584,
+            "iteration": 12,
+            "overflow": 0.03951809559080854,
+            "rss_kib": 623360
+          },
+          {
+            "elapsed_ms": 55220.905426,
+            "hpwl": 9746372077.995901,
+            "iteration": 13,
+            "overflow": 0.038577358809600976,
+            "rss_kib": 674492
+          },
+          {
+            "elapsed_ms": 60473.811081,
+            "hpwl": 9691840388.23494,
+            "iteration": 14,
+            "overflow": 0.037822498604903124,
+            "rss_kib": 621620
+          },
+          {
+            "elapsed_ms": 64293.140102,
+            "hpwl": 9637146121.306204,
+            "iteration": 15,
+            "overflow": 0.037125680850720454,
+            "rss_kib": 672748
+          },
+          {
+            "elapsed_ms": 68484.293109,
+            "hpwl": 9585595923.86235,
+            "iteration": 16,
+            "overflow": 0.036544134068450265,
+            "rss_kib": 672896
+          },
+          {
+            "elapsed_ms": 73012.928876,
+            "hpwl": 9538358629.640987,
+            "iteration": 17,
+            "overflow": 0.03604057203226781,
+            "rss_kib": 681084
+          },
+          {
+            "elapsed_ms": 76538.07227,
+            "hpwl": 9488202252.530537,
+            "iteration": 18,
+            "overflow": 0.035429813573421835,
+            "rss_kib": 681088
+          },
+          {
+            "elapsed_ms": 81288.306024,
+            "hpwl": 9442638436.045015,
+            "iteration": 19,
+            "overflow": 0.03488703497724242,
+            "rss_kib": 681088
+          },
+          {
+            "elapsed_ms": 84752.114466,
+            "hpwl": 9395156563.77722,
+            "iteration": 20,
+            "overflow": 0.03424432054441992,
+            "rss_kib": 681088
+          }
+        ],
+        "load_ms": 6071.616472,
+        "macro_sa": {
+          "iterations": 4000,
+          "ms": 34.627964,
+          "nodes": 2,
+          "rows": 5,
+          "rss_kib": 434204,
+          "violations": 0
+        },
+        "prepare_ms": 10761.804433,
+        "rss_after_global_kib": 434204,
+        "rss_before_global_kib": 386140,
+        "rss_before_micro_kib": 370384,
+        "scope": "external full topology global; separate synthetic SA/Abacus cost, not large-dataset legalization",
+        "wirelength_ms": [
+          343.168159,
+          361.652035,
+          330.082247
+        ],
+        "wirelength_value": 10327141757.03042,
+        "effective_config": {
+          "abacus_candidate_rows": "all",
+          "backtrack_limit": 20,
+          "convergence_window": 5,
+          "fft_threads": 1,
+          "filler_limit": 20000,
+          "gds_dbu_um": 0.001,
+          "grid_nx": 32,
+          "grid_ny": 32,
+          "image_width": 1600,
+          "initial_mode": "auto",
+          "lambda_max": 100000000.0,
+          "lambda_min": 1e-08,
+          "lambda_update_max": 1.1,
+          "lambda_update_min": 0.75,
+          "macro_displacement_weight": 0.1,
+          "macro_hpwl_weight": 1.0,
+          "macro_overlap_weight": 10.0,
+          "macro_overlap_weight_max": 1000000.0,
+          "macro_seed": null,
+          "macro_sweeps": 100,
+          "margin": 24,
+          "max_iterations": 20,
+          "microns_per_du": null,
+          "moves_per_macro": 20,
+          "overflow_stop": 0.0,
+          "preview_hz": 5,
+          "schemaVersion": 1,
+          "seed": 42,
+          "shrink": 0.5,
+          "stagnation_window": 20,
+          "target_density": 0.8
+        }
+      }
+    }
+  },
+  "limitations": [
+    "No controlled cold-load sample or real desktop manual verification",
+    "Large benchmark full SA/Abacus not executed; synthetic cost fixtures are explicitly separate",
+    "20-round profile sets overflow_stop=0 to exercise iteration limit; does not claim convergence quality",
+    "Density/WA/FFT times are independent microbenchmarks, not nested per-iteration instrumentation"
+  ],
+  "reproducibility": {
+    "schemaVersion": 1,
+    "runs": [
+      "thin1-repeat",
+      "thin1-repeat2"
+    ],
+    "datasetId": "ae7fa2e891349acbf4712aa39ec10747e1d85a3076d13b52cfb71502a0483d4e",
+    "seed": 42,
+    "effective_configs_match": true,
+    "all_stages_match": true,
+    "stages": [
+      {
+        "stage": "initial",
+        "identical_except": [
+          "runId",
+          "metrics.elapsedMs"
+        ],
+        "iteration": 0,
+        "termination": "prepared",
+        "hpwl": 16668.809928912982
+      },
+      {
+        "stage": "global",
+        "identical_except": [
+          "runId",
+          "metrics.elapsedMs"
+        ],
+        "iteration": 0,
+        "termination": "converged",
+        "hpwl": 16668.809928912982
+      },
+      {
+        "stage": "macro_legal",
+        "identical_except": [
+          "runId",
+          "metrics.elapsedMs"
+        ],
+        "iteration": 0,
+        "termination": "completed",
+        "hpwl": 16668.809928912982
+      },
+      {
+        "stage": "standard_legal",
+        "identical_except": [
+          "runId",
+          "metrics.elapsedMs"
+        ],
+        "iteration": 3,
+        "termination": "completed",
+        "hpwl": 16660.0
+      }
+    ]
+  },
+  "gds_independent_readbacks": {
+    "reader": "KLayout 0.30.0",
+    "count": 8,
+    "result": "passed",
+    "scope": "four stages each of thin1-final and lefdef-final; source snapshot rectangles independently reconstructed"
+  },
+  "four_stage_audit": [
+    {
+      "run": "thin1-final",
+      "exitCode": 0,
+      "stages": [
+        "initial",
+        "global",
+        "macro_legal",
+        "standard_legal"
+      ],
+      "metrics_rows": 5,
+      "seed": 42,
+      "snapshot_report_identities_match": true
+    },
+    {
+      "run": "lefdef-final",
+      "exitCode": 0,
+      "stages": [
+        "initial",
+        "global",
+        "macro_legal",
+        "standard_legal"
+      ],
+      "metrics_rows": 4,
+      "seed": 42,
+      "snapshot_report_identities_match": true
+    }
+  ],
+  "automatic_tests": {
+    "headless": {
+      "passed": 84,
+      "total": 84,
+      "display": false,
+      "gui": false
+    },
+    "gui": {
+      "passed": 85,
+      "total": 85,
+      "platform": "offscreen"
+    },
+    "qt_test_internal_including_init_cleanup": 17
+  },
+  "acceptance_tracking": {
+    "total": 88,
+    "passed": 51,
+    "partial": 37,
+    "requirements": 25
+  }
+}
