@@ -119,31 +119,47 @@ cmake --build --preset headless --parallel 2
 
 ### 2.4 本开发环境的启动命令
 
-本机使用本地依赖前缀。由于 hgfs 共享目录的符号链接和对象文件读回限制，**实际验证过的构建目录位于 `/tmp`**。已有构建结果时，可以直接启动：
+本机已安装系统开发包，当前使用系统 FFTW、OpenSSL、nlohmann/json、GoogleTest 和 Qt 6。由于 hgfs 共享目录的符号链接和对象文件读回限制，**当前验证构建目录为 `/tmp/school3-system-check`，同时包含 GUI 和 CLI**。
+
+`/tmp` 是 Linux 根目录下的临时目录，不在项目目录内。可以在文件管理器按 `Ctrl+L`，输入 `/tmp/school3-system-check` 查看；临时目录被清理后需要重新构建。
+
+已有构建结果时，在本机 Ubuntu 桌面的终端执行：
 
 ```sh
-# 需要在有可用桌面会话的终端运行。
-/tmp/school3-gui/placement_gui
+cd /mnt/hgfs/programs/school-3/code
+
+# 使用 Qt 通用主题和 Fusion 样式，避开本机 GNOME 设置兼容问题。
+QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion \
+  /tmp/school3-system-check/placement_gui
 
 # 查看 CLI 帮助，不需要桌面。
-/tmp/school3-headless/placement_cli --help
+/tmp/school3-system-check/placement_cli --help
 ```
 
-如果 `/tmp` 已被清理，或者需要重新构建，执行：
+本机直接启动 GUI 曾出现 `Settings schema 'org.gnome.settings-daemon.plugins.xsettings' does not contain a key named 'antialiasing'` 并中止。上面的环境变量仅作用于该次启动，用于绕过桌面主题集成；已在本机桌面会话中验证启动后运行 5 秒未出现该错误，随后主动结束验证。此检查只确认启动，不替代完整人工交互验收。
+
+如果程序不存在，或者需要重新构建，先确认已按2.2节准备系统开发包及 Limbo 源码，再执行：
 
 ```sh
-cmake -S . -B /tmp/school3-gui -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_GUI=ON -DBUILD_TESTING=ON \
-  -DPLACEMENT_DEPS_PREFIX=/tmp/school3-deps/usr
-cmake --build /tmp/school3-gui --parallel 2
+cd /mnt/hgfs/programs/school-3/code
 
-cmake -S . -B /tmp/school3-headless -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_GUI=OFF -DBUILD_TESTING=ON \
-  -DPLACEMENT_DEPS_PREFIX=/tmp/school3-deps/usr
-cmake --build /tmp/school3-headless --parallel 2
+cmake -S . -B /tmp/school3-system-check \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_GUI=ON -DBUILD_TESTING=ON \
+  -DPLACEMENT_DEPS_PREFIX= \
+  -DGTest_DIR=/usr/lib/x86_64-linux-gnu/cmake/GTest \
+  -Dnlohmann_json_DIR=/usr/share/cmake/nlohmann_json
+cmake --build /tmp/school3-system-check --parallel 2
+
+# 确认程序已生成，并运行自动测试。
+ls -l /tmp/school3-system-check/placement_gui /tmp/school3-system-check/placement_cli
+ctest --test-dir /tmp/school3-system-check --output-on-failure
 ```
 
-如果依赖前缀也不存在，先执行上一节的依赖准备。无桌面环境可以直接使用 CLI；Qt 的 `offscreen` 方式用于自动测试，不会显示可交互的桌面窗口。
+上述 Ninja 构建命令需要 `ninja-build`，未安装时可执行 `sudo apt-get install ninja-build`。`-B` 指定构建输出目录，CMake 自动创建目录。命令中的两个包路径适用于本机 Ubuntu amd64，显式选择系统 GoogleTest 和 JSON，避免激活的 Miniconda 环境优先提供其他版本。`PLACEMENT_DEPS_PREFIX` 留空，表示此次构建不使用原来的本地解包前缀。
+
+截至2026-10-26，该系统依赖配置已成功编译 GUI、CLI 和测试程序，**85/85 项 CTest 通过**，包括 GUI 离屏测试和 KLayout 独立回读。无桌面环境使用 CLI；Qt 的 `offscreen` 方式用于自动测试，不会显示可交互的桌面窗口。
 
 ### 2.5 GUI 首次使用流程
 
@@ -170,7 +186,7 @@ export PLACEMENT_CLI=./build/headless/placement_cli
 本开发环境改用以下路径：
 
 ```sh
-export PLACEMENT_CLI=/tmp/school3-headless/placement_cli
+export PLACEMENT_CLI=/tmp/school3-system-check/placement_cli
 ```
 
 如果只构建了常规 GUI 版本，也可设为 `./build/default/placement_cli`。
@@ -297,6 +313,9 @@ JSON
 | CMake 找不到 FFTW、JSON、CImg、OpenSSL 或 GoogleTest | 安装对应开发包；本地解包方式传入 `PLACEMENT_DEPS_PREFIX` |
 | 找不到 Qt Widgets / Qt Test | 安装 Qt 6 开发包；只需 CLI 时设 `BUILD_GUI=OFF`，只需程序时可关闭测试 |
 | GUI 提示无法连接显示服务或加载平台插件 | 在可用桌面会话中启动并检查 Qt 平台插件；无桌面任务使用 CLI |
+| GUI 因 GNOME `xsettings` 缺少 `antialiasing` 键而中止 | 使用2.4节带 `QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion` 的启动命令 |
+| 构建后在项目内找不到 `tmp` 目录 | `/tmp` 位于 Linux 根目录；执行 `ls -l /tmp/school3-system-check`，若程序不存在则检查配置和编译输出 |
+| CMake 选中了 Miniconda 的 GoogleTest / JSON，或提示运行库路径冲突 | 参照2.4节显式指定系统 `GTest_DIR` 和 `nlohmann_json_DIR` 后重新配置、构建 |
 | hgfs 共享目录构建异常或不支持符号链接 | 参照2.4节，将构建目录和解包依赖放到 `/tmp` 等本地文件系统 |
 | 输出目录或文件已存在 | 运行改用新目录；单文件导出按需增加 `--overwrite` |
 | 宏/标准阶段提示缺少前置快照 | 分别提供 `global` / `macro_legal` 的 `placement.json` 和原始输入 |
@@ -379,9 +398,12 @@ runs/<runId 或指定目录>/
 ctest --test-dir build/headless --output-on-failure
 ctest --test-dir build/default --output-on-failure
 
-# 本开发环境对应命令。
+# 早期本地依赖前缀构建的验证命令（保留历史记录）。
 env -u DISPLAY ctest --test-dir /tmp/school3-headless --output-on-failure
 ctest --test-dir /tmp/school3-gui --output-on-failure
+
+# 当前系统依赖构建（同时覆盖 CLI 和 GUI 测试）。
+ctest --test-dir /tmp/school3-system-check --output-on-failure
 ```
 
 截至2026-10-26，已记录无Qt配置 **84/84 CTest**、GUI配置 **85/85 CTest** 通过，Qt Test内部 **17项**（含init/cleanup）通过；两个成功流程的8份阶段GDS经KLayout独立回读通过，同输入/配置/seed的两次thin1四阶段数学结果一致。
