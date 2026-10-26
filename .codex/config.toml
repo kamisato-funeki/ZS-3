@@ -1,0 +1,9 @@
+# 项目级子代理设置；主代理的模型与权限继续沿用当前会话。
+[agents]
+# 启用项目子代理；角色定义由 .codex/agents/*.toml 提供。
+enabled = true
+# 此值不包含主代理：最多 2 个子代理，加主代理总计最多 3 个。
+max_concurrent_threads_per_session = 2
+# 未显式选角色时仍限制在用户允许的模型与思考强度内。
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "medium"
