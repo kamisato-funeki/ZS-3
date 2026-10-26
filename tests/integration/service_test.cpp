@@ -29,6 +29,9 @@ TEST(EffectiveConfiguration,StrictTypesPrecedenceAndRoundtrip) {
     EXPECT_THROW(ParseConfig(R"({"max_iterations":1.5})"),Error);
     EXPECT_THROW(ParseConfig(R"({"target_density":0})"),Error);
     EXPECT_THROW(ParseConfig(R"({"grid_nx":30,"grid_ny":32})"),Error);
+    EXPECT_THROW(ParseConfig(R"({"convergence_window":1})"),Error);
+    EXPECT_THROW(ParseConfig(R"({"gds_dbu_um":0})"),Error);
+    EXPECT_THROW(ParseConfig(R"({"target_density":NaN})"),Error);
 }
 /** @brief TC-VIS-11：写失败/取消/目标竞争均不破坏旧文件；无输入，无返回值。 */
 TEST(AtomicOutput,PreservesExistingAndCleansFailedWrites) {

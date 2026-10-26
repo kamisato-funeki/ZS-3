@@ -375,6 +375,7 @@ void validateConfig(const Config& config) {
     if (!((config.gridNx == 0 && config.gridNy == 0) || (validGrid(config.gridNx) && validGrid(config.gridNy)))) Throw("INPUT_INVALID", "网格须同时自动或为 32～512 的 2 次幂", "gridNx/gridNy", true);
     if (!nonnegative(config.overflowStop) || config.overflowStop >= 1.0) Throw("INPUT_INVALID", "overflowStop 必须位于 [0,1)", "overflowStop", true);
     if (config.maxIterations <= 0 || config.backtrackLimit <= 0 || config.macroSweeps <= 0 || config.movesPerMacro <= 0 || config.fillerLimit == 0 || config.convergenceWindow <= 0 || config.stagnationWindow <= 0) Throw("INPUT_INVALID", "迭代、搜索、收敛窗口与 filler 上限必须为正", "limits", true);
+    if (config.convergenceWindow != 5) Throw("INPUT_INVALID", "收敛窗口按实施契约固定为连续五轮", "convergence_window", true);
     if (!positive(config.shrink) || config.shrink >= 1.0) Throw("INPUT_INVALID", "shrink 必须位于 (0,1)", "shrink", true);
     if (config.fftThreads != 1) Throw("UNSUPPORTED", "确定性基线只支持单线程 FFT", "fftThreads", true);
     if (!positive(config.lambdaUpdateMin) || !positive(config.lambdaUpdateMax) || config.lambdaUpdateMin > config.lambdaUpdateMax ||

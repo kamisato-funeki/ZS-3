@@ -1,7 +1,9 @@
 #include "placement/application/global.hpp"
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
 #include <numeric>
 
 namespace placement {
@@ -187,6 +189,27 @@ TEST(GlobalOptimizer,MaximumIterationsAndIdentity) {
     ASSERT_TRUE(result.metrics.lambda.has_value());ASSERT_TRUE(result.metrics.gamma.has_value());ASSERT_TRUE(result.metrics.step.has_value());
     EXPECT_GT(*result.metrics.lambda,0);EXPECT_GT(*result.metrics.gamma,0);EXPECT_GT(*result.metrics.step,0);
 }
+/** @brief TC-GP-13：真实轨迹首次跨阈值后必须连续五轮，不能一次达标提前成功；无输入，无返回值。 */
+TEST(GlobalOptimizer,ConvergenceRequiresFiveAcceptedRounds) {
+    auto db=std::make_shared<DesignDatabase>(fixture()); // 本测试只读拓扑。
+    Snapshot initial; // 不满足初始阈值例外的聚集布局。
+    initial.database=db;initial.datasetId=db->datasetId;initial.runId="five-rounds";initial.stage="initial";initial.positions=db->originalPositions;
+    Config config=configuration(); // 先以固定预算测量可到达overflow范围，不复用收敛计数实现。
+    config.maxIterations=25;config.overflowStop=0;config.fillerLimit=16;
+    ControlToken probeToken; // 只用于建立可达阈值的独立试运行。
+    double firstOverflow=-1; // 初始真实overflow，首次回调设置。
+    double minimumOverflow=1; // 固定25轮中观测到的最小值。
+    /** @brief 收集真实溢出范围，不参与优化器决策。 @param snapshot 完整接受轮。 无返回值。 */
+    RunGlobal(initial,config,probeToken,[&](const Snapshot& snapshot){if(firstOverflow<0)firstOverflow=*snapshot.metrics.overflow;minimumOverflow=std::min(minimumOverflow,*snapshot.metrics.overflow);});
+    ASSERT_LT(minimumOverflow,firstOverflow);
+    config.overflowStop=(firstOverflow+minimumOverflow)/2;config.maxIterations=100;
+    ControlToken token; // 真正收敛测试的独立控制。
+    int consecutive=0; // 外部逐事件判定器的连续达标计数。
+    std::uint64_t firstFive=0; // 第一次达到五轮的接受迭代编号，0表示尚未达到。
+    /** @brief 独立观察已发布指标并检查末轮标记。 @param snapshot 不可变完整轮。 无返回值。 */
+    const Snapshot result=RunGlobal(initial,config,token,[&](const Snapshot& snapshot){if(snapshot.iteration==0){EXPECT_GT(*snapshot.metrics.overflow,config.overflowStop);return;}consecutive=*snapshot.metrics.overflow<=config.overflowStop?consecutive+1:0;if(consecutive==5&&firstFive==0)firstFive=snapshot.iteration;if(consecutive<5)EXPECT_NE(snapshot.termination,"converged");});
+    EXPECT_EQ(result.termination,"converged");EXPECT_GE(firstFive,5U);EXPECT_EQ(result.iteration,firstFive);
+}
 /** @brief TC-GP：多轮变参数调度及投影均保持完整有限发布点，sink 中取消会停止。 */
 TEST(GlobalOptimizer,MultipleIterationsAndCancellationAtCommit) {
     auto db=std::make_shared<DesignDatabase>(fixture()); ///< 共享数值拓扑。
@@ -228,6 +251,224 @@ TEST(GlobalOptimizer,DegenerateAndCancelledCases) {
     initial.database=spread;initial.datasetId=spread->datasetId;initial.positions=spread->originalPositions;
     config.overflowStop=0.99;config.fillerLimit=16;
     EXPECT_EQ(RunGlobal(initial,config,token).termination,"converged");
+}
+/** @brief 构造无节点、无网络、以整行完全铺满矩形core的独立测试拓扑。
+ * @param width core宽度，正整数DU。 @param height core高度，正整数DU。
+ * @param rowHeight 行高，正整数DU，测试调用保证整除height。
+ * @return 新数据库值，ID等于向量索引，不读取外部数据。 */
+DesignDatabase densityDatabase(int width,int height,int rowHeight) {
+    DesignDatabase database; // 当前测试独占的矩形区域拓扑。
+    database.datasetId="direct-density-"+std::to_string(width)+"-"+std::to_string(height);
+    for(int y=0;y<height;y+=rowHeight) { // 当前水平行底边，DU。
+        RowSegment row; // 当前原始行，站点间距和宽度均为1 DU。
+        row.id=database.rows.size();row.y=y;row.height=rowHeight;
+        row.siteWidth=1;row.sitePitch=1;row.numSites=static_cast<std::uint64_t>(width);
+        database.rows.push_back(row);
+    }
+    return database;
+}
+/** @brief 为独立密度夹具追加实体及输入基线。
+ * @param database 独占目标拓扑。 @param name 唯一对象名称。 @param kind 物理类别。
+ * @param width 未旋转宽度，DU。 @param height 未旋转高度，DU。
+ * @param x 输入左下角横坐标，DU。 @param y 输入左下角纵坐标，DU。
+ * @param fixed 输入固定标记。 无返回值，只追加节点和对应基线。 */
+void densityNode(DesignDatabase& database,const std::string& name,NodeKind kind,double width,double height,
+                 double x,double y,bool fixed=false) {
+    Node node; // 当前追加对象，稳定ID由原节点数量确定。
+    node.id=database.nodes.size();node.name=name;node.kind=kind;
+    node.width=width;node.height=height;node.fixed=fixed;
+    database.nodes.push_back(node);database.originalPositions.push_back({x,y,Orientation::N});
+}
+/** @brief TC-GP-01：F-A两引脚在多个递减gamma下趋近手算HPWL=10 DU。
+ * 无输入、无返回值；两轴间距均为5 DU，独立闭式WA=10*tanh(2.5/gamma)。 */
+TEST(GlobalWirelength,DecreasingGammaApproachesHandComputedHpwl) {
+    DesignDatabase database=densityDatabase(10,10,2); // F-A几何域，指标核对不要求初始位置合法。
+    densityNode(database,"A",NodeKind::Standard,2,2,1,1);
+    densityNode(database,"B",NodeKind::Standard,2,2,7,5);
+    database.pins={{0,0,0,{0.5,-0.5}},{1,1,0,{-0.5,0.5}}};
+    database.nets={{0,"F-A",{0,1},1.0}};
+    double previousError=std::numeric_limits<double>::infinity(); // 上一个较大gamma的HPWL近似绝对误差，DU。
+    for(const double gamma:{5.0,2.0,1.0,0.5,0.25,0.1}) { // 当前平滑尺度，DU，严格递减。
+        const WirelengthEvaluation evaluation=EvaluateWirelength(database,database.originalPositions,gamma); // 待验证的真实解析WA结果。
+        const double closedForm=10.0*std::tanh(2.5/gamma); // 独立二引脚logistic闭式真值，DU。
+        const double error=std::abs(10.0-evaluation.value); // 相对纸面HPWL的绝对误差，DU。
+        EXPECT_NEAR(evaluation.value,closedForm,1e-12);
+        EXPECT_GE(evaluation.value,0.0);EXPECT_LE(evaluation.value,10.0+1e-12);
+        EXPECT_LE(error,previousError+1e-12);
+        previousError=error;
+    }
+    EXPECT_LE(previousError,1e-12);
+}
+/** @brief TC-GP-03/F-E：core100 DU²、标准面积20、宏面积20、d=.8给Q36及filler44。
+ * 无输入、无返回值；分项及总电荷对独立面积公式核对，不用模型自身的平均值当真值。 */
+TEST(GlobalDensity,SpecifiedMixedChargeAndFillerConservation) {
+    DesignDatabase database=densityDatabase(10,10,2); // 五行形成完整10×10 DU域。
+    densityNode(database,"standard",NodeKind::Standard,10,2,0,0);
+    densityNode(database,"macro",NodeKind::Macro,5,4,0,2);
+    Config config; // 保留设计默认密度.8与filler上限，仅显式小网格加速直接判据。
+    config.gridNx=32;config.gridNy=32;
+    DensityModel model(database,database.originalPositions,config); // F-E混合尺寸电荷模型。
+    const DensityEvaluation evaluation=model.evaluate(database.originalPositions,model.fillerPositions()); // 固定同组filler位置的完整电荷。
+    EXPECT_DOUBLE_EQ(model.availableArea(),100.0);
+    EXPECT_FALSE(model.fillerCapped());
+    ASSERT_EQ(model.fillerSizes().size(),3U);
+    EXPECT_NEAR(sum(evaluation.staticCharge),0.0,1e-12);
+    EXPECT_NEAR(sum(evaluation.realCharge),36.0,1e-10); // Q=20+.8×20。
+    EXPECT_NEAR(sum(evaluation.fillerCharge),44.0,1e-10); // .8×100-Q。
+    EXPECT_NEAR(sum(evaluation.totalCharge),80.0,1e-10);
+    double fillerArea=0; // 独立从公开宽高累加的filler物理面积，DU²。
+    for(const Vec2& size:model.fillerSizes()) { // 当前临时filler宽高，DU。
+        EXPECT_GT(size.x,0.0);EXPECT_GT(size.y,0.0);
+        EXPECT_LE(size.x,10.0);EXPECT_LE(size.y,10.0);
+        fillerArea+=size.x*size.y;
+    }
+    EXPECT_NEAR(fillerArea,44.0,1e-10);
+    EXPECT_EQ(database.nodes.size(),2U);
+}
+/** @brief TC-GP-08：整个core被同一固定矩形均匀覆盖且没有网络时，去DC后电势/能量/梯度为零。
+ * 无输入、无返回值；每bin静态密度独立预期为d=.8，不借随机filler近似均匀场。 */
+TEST(GlobalDensity,UniformStaticNoNetFieldHasZeroPotentialAndGradient) {
+    DesignDatabase database=densityDatabase(32,32,1); // 无暗区的32×32 DU core。
+    densityNode(database,"fixed-cover",NodeKind::Macro,32,32,0,0,true);
+    Config config; // 固定32×32网格使每bin恰为1 DU²。
+    config.gridNx=32;config.gridNy=32;
+    DensityModel model(database,database.originalPositions,config); // 无移动电荷，禁止用随机filler制造均匀假设。
+    EXPECT_TRUE(database.nets.empty());EXPECT_TRUE(database.pins.empty());
+    EXPECT_TRUE(model.fillerPositions().empty());EXPECT_DOUBLE_EQ(model.availableArea(),0.0);
+    const DensityEvaluation evaluation=model.evaluate(database.originalPositions,{}); // 仅含均匀静态电荷的完整场。
+    ASSERT_EQ(evaluation.totalCharge.size(),1024U);
+    for(const double charge:evaluation.staticCharge) EXPECT_NEAR(charge,0.8,1e-12); // 当前bin静态电荷，DU²。
+    for(const double charge:evaluation.realCharge) EXPECT_DOUBLE_EQ(charge,0.0); // 当前bin真实移动电荷，DU²。
+    for(const double potential:evaluation.potential) EXPECT_NEAR(potential,0.0,1e-10); // 当前去直流电势，DU²。
+    EXPECT_NEAR(evaluation.energy,0.0,1e-10);EXPECT_DOUBLE_EQ(evaluation.overflow,0.0);
+    ASSERT_EQ(evaluation.gradient.size(),1U);
+    EXPECT_DOUBLE_EQ(evaluation.gradient[0].x,0.0);EXPECT_DOUBLE_EQ(evaluation.gradient[0].y,0.0);
+    EXPECT_TRUE(evaluation.fillerGradient.empty());
+    EXPECT_NEAR(sum(evaluation.totalCharge),819.2,1e-10);
+}
+/** @brief TC-GP-09：对象真实贴core四个边界时只向可行域内做二阶单侧差分。
+ * 无输入、无返回值；h及h/2均满足相对误差<=1e-5，不使用越界负向样本。 */
+TEST(GlobalDensity,CoreBoundaryUsesFeasibleOneSidedDifferences) {
+    const DesignDatabase database=fixture(); // 2×2对象与32×32 core的独立数值拓扑。
+    const Config config=configuration(); // 既有32×64矩形网格，保留核截断及分母导数。
+    DensityModel model(database,database.originalPositions,config); // 全部差分共用相同filler和静态场。
+    const std::vector<Vec2> fillers=model.fillerPositions(); // 固定的临时filler中心，DU。
+    for(const double edge:{0.0,30.0}) { // 2 DU宽高对象的左下/右上可行边界，DU。
+        PositionState positions=database.originalPositions; // 当前贴边、仍完全可行的基点。
+        positions[0].x=edge;positions[0].y=edge;
+        const DensityEvaluation analytic=model.evaluate(positions,fillers); // 边界基点的能量与解析中心梯度。
+        const double inward=edge==0.0?1.0:-1.0; // 内向采样方向，保证没有任何越界差分点。
+        for(int axis=0;axis<2;++axis) { // 当前核对的横向/纵向分量。
+            for(const double h:{1e-4,5e-5}) { // 当前可行单侧差分步长，DU，第二值为减半复核。
+                PositionState first=positions; // 沿可行方向移动h的完整真实位置。
+                PositionState second=positions; // 沿可行方向移动2h的完整真实位置。
+                if(axis==0) { first[0].x+=inward*h;second[0].x+=inward*2*h; }
+                else { first[0].y+=inward*h;second[0].y+=inward*2*h; }
+                const Rect firstRect=nodeRect(database.nodes[0],first[0]); // 首差分样本物理框，DU。
+                const Rect secondRect=nodeRect(database.nodes[0],second[0]); // 次差分样本物理框，DU。
+                EXPECT_GE(firstRect.lx,0.0);EXPECT_GE(firstRect.ly,0.0);EXPECT_LE(firstRect.ux,32.0);EXPECT_LE(firstRect.uy,32.0);
+                EXPECT_GE(secondRect.lx,0.0);EXPECT_GE(secondRect.ly,0.0);EXPECT_LE(secondRect.ux,32.0);EXPECT_LE(secondRect.uy,32.0);
+                const double firstEnergy=model.evaluate(first,fillers).energy; // E(z+s*h)，DU⁴。
+                const double secondEnergy=model.evaluate(second,fillers).energy; // E(z+2s*h)，DU⁴。
+                const double numerical=inward*(-3*analytic.energy+4*firstEnergy-secondEnergy)/(2*h); // 对原x/y坐标的二阶可行单侧导数，DU³。
+                const double derivative=axis==0?analytic.gradient[0].x:analytic.gradient[0].y; // 待独立核对的解析分量，DU³。
+                const double relativeError=std::abs(numerical-derivative)/std::max({1.0,std::abs(numerical),std::abs(derivative)}); // 设计05规定的相对差分误差。
+                EXPECT_LE(relativeError,1e-5)<<"edge="<<edge<<", axis="<<axis<<", h="<<h;
+            }
+        }
+    }
+}
+/** @brief TC-GP-17：具有非零权重和非零偏移的单引脚网络对所有节点的WA目标/梯度都为零。
+ * 无输入、无返回值；覆盖不同gamma，避免把零权网络误当作单引脚判据。 */
+TEST(GlobalWirelength,SinglePinNetworkHasZeroObjectiveAndGradient) {
+    DesignDatabase database=fixture(); // 保留移动实体和固定端口，仅替换网络连接。
+    database.pins={{0,0,0,{0.13,-0.21}}};
+    database.nets={{0,"single-pin",{0},1.7}};
+    for(const double gamma:{0.05,1.0,8.0}) { // 当前正平滑尺度，DU。
+        const WirelengthEvaluation evaluation=EvaluateWirelength(database,database.originalPositions,gamma); // 单引脚目标及按NodeId累积梯度。
+        EXPECT_DOUBLE_EQ(evaluation.value,0.0);
+        ASSERT_EQ(evaluation.gradient.size(),database.nodes.size());
+        for(const Vec2& gradient:evaluation.gradient) { // 包括无连接移动对象和固定端口在内的完整梯度。
+            EXPECT_DOUBLE_EQ(gradient.x,0.0);EXPECT_DOUBLE_EQ(gradient.y,0.0);
+        }
+    }
+}
+/** @brief TC-GP-18：默认上限20000必须真正触发，并保持每个filler尺寸可容纳及总面积/电荷守恒。
+ * 无输入、无返回值；core面积1e6、真实电荷1、d=.8，独立所需filler面积799999 DU²。 */
+TEST(GlobalDensity,DefaultTwentyThousandFillerCapIsActuallyTriggered) {
+    DesignDatabase database=densityDatabase(1000,1000,1); // 稀疏大core，用默认网格公式和默认filler上限。
+    densityNode(database,"one-cell",NodeKind::Standard,1,1,1.125,2.25);
+    const Config config; // 完全未改写的默认配置，fillerLimit应为20000。
+    ASSERT_EQ(config.fillerLimit,20000U);
+    DensityModel model(database,database.originalPositions,config); // 未截断数量ceil799999，实际必须触顶20000。
+    EXPECT_TRUE(model.fillerCapped());
+    ASSERT_EQ(model.fillerPositions().size(),20000U);ASSERT_EQ(model.fillerSizes().size(),20000U);
+    double fillerArea=0; // 独立累加公开临时矩形尺寸得到的总面积，DU²。
+    for(std::size_t index=0;index<model.fillerSizes().size();++index) { // 当前真实触顶filler编号。
+        const Vec2& size=model.fillerSizes()[index]; // 当前filler正宽高，DU。
+        const Vec2& center=model.fillerPositions()[index]; // 当前按允许区域抽样的中心，DU。
+        EXPECT_GT(size.x,0.0);EXPECT_GT(size.y,0.0);EXPECT_LE(size.x,1000.0);EXPECT_LE(size.y,1000.0);
+        EXPECT_NEAR(size.x,size.y,1e-12); // 单位方块样本推导的宽高比必须为1。
+        EXPECT_TRUE(std::isfinite(center.x));EXPECT_TRUE(std::isfinite(center.y));
+        EXPECT_GE(center.x,0.0);EXPECT_LE(center.x,1000.0);EXPECT_GE(center.y,0.0);EXPECT_LE(center.y,1000.0);
+        fillerArea+=size.x*size.y;
+    }
+    EXPECT_NEAR(fillerArea,799999.0,799999.0e-10);
+    const DensityEvaluation evaluation=model.evaluate(database.originalPositions,model.fillerPositions()); // 默认512级网格中的实际沉积与守恒结果。
+    EXPECT_NEAR(sum(evaluation.realCharge),1.0,1e-10);
+    EXPECT_NEAR(sum(evaluation.fillerCharge),799999.0,799999.0e-10);
+    EXPECT_NEAR(sum(evaluation.totalCharge),800000.0,800000.0e-10);
+    EXPECT_EQ(database.nodes.size(),1U);EXPECT_TRUE(database.pins.empty()); // filler不得写入拓扑或真实计数。
+    EXPECT_DOUBLE_EQ(database.originalPositions[0].x,1.125);EXPECT_DOUBLE_EQ(database.originalPositions[0].y,2.25);
+}
+/** @brief TC-GP-15：有限巨大合法权重诱发数值失败，诊断必须保持最后完整发布点和原输入固定性。
+ * 无输入、无返回值；不修改const模型、不注入NaN、不依赖不安全内存或生产代码钩子。 */
+TEST(GlobalOptimizer,FiniteHugeWeightFailureRetainsLastCompleteDiagnostic) {
+    auto database=std::make_shared<DesignDatabase>(fixture()); // 尚未发布为const前构造可审计输入。
+    database->nets[0].weight=1e200; // 合法有限正权重；导数平方范数可能溢出，必须转为NUMERIC_FAILURE。
+    EXPECT_TRUE(std::isfinite(database->nets[0].weight));
+    ASSERT_NO_THROW(validateDatabase(*database));
+    Snapshot initial; // 明确绑定输入身份的完整初始快照。
+    initial.database=database;initial.datasetId=database->datasetId;initial.runId="finite-weight-failure";
+    initial.revision=17;initial.positions=database->originalPositions;
+    Config config=configuration(); // 强制进入优化；只需有限轮数触达导数差范数的数值检查。
+    config.maxIterations=4;config.overflowStop=0;config.fillerLimit=16;
+    ControlToken control; // 正常运行令牌，失败必须来自数值检查而非取消。
+    std::optional<Snapshot> lastComplete; // 仅由同步完整发布回调复制的最后一次一致几何。
+    /** @brief 保存完整提交，便于与异常携带诊断独立比较。
+     * @param snapshot 同轮有限坐标和指标的发布点。 无返回值；只复制测试局部状态。 */
+    const auto sink=[&lastComplete](const Snapshot& snapshot) {
+        lastComplete=snapshot;
+        for(const Position& position:snapshot.positions) { // 每个实际发布节点位置，DU。
+            EXPECT_TRUE(std::isfinite(position.x));EXPECT_TRUE(std::isfinite(position.y));
+        }
+        if(snapshot.metrics.hpwl) EXPECT_TRUE(std::isfinite(*snapshot.metrics.hpwl));
+        if(snapshot.metrics.weightedHpwl) EXPECT_TRUE(std::isfinite(*snapshot.metrics.weightedHpwl));
+        if(snapshot.metrics.densityEnergy) EXPECT_TRUE(std::isfinite(*snapshot.metrics.densityEnergy));
+    }; // 捕获的lastComplete只由当前工作线程在同步回调内修改。
+    try { RunGlobal(initial,config,control,sink); FAIL()<<"有限巨大权重的数值溢出必须报告而非发布非有限结果"; }
+    catch(const Error& error) { // 稳定错误及不可变诊断必须保留最后完整布局，不泄漏半步候选。
+        EXPECT_EQ(error.code,"NUMERIC_FAILURE");
+        ASSERT_TRUE(error.diagnosticSnapshot);
+        const Snapshot& diagnostic=*error.diagnosticSnapshot; // 异常持有的只读完整诊断。
+        EXPECT_EQ(diagnostic.stage,"preview");EXPECT_EQ(diagnostic.termination,"NUMERIC_FAILURE");
+        EXPECT_EQ(diagnostic.datasetId,initial.datasetId);EXPECT_EQ(diagnostic.runId,initial.runId);
+        ASSERT_TRUE(lastComplete.has_value());
+        EXPECT_EQ(diagnostic.iteration,lastComplete->iteration);EXPECT_EQ(diagnostic.revision,lastComplete->revision);
+        ASSERT_EQ(diagnostic.positions.size(),lastComplete->positions.size());
+        for(std::size_t id=0;id<diagnostic.positions.size();++id) { // 按稳定NodeId逐项核对最后完整点。
+            EXPECT_DOUBLE_EQ(diagnostic.positions[id].x,lastComplete->positions[id].x);
+            EXPECT_DOUBLE_EQ(diagnostic.positions[id].y,lastComplete->positions[id].y);
+            EXPECT_EQ(diagnostic.positions[id].orientation,lastComplete->positions[id].orientation);
+        }
+        EXPECT_NO_THROW(validatePositions(*database,diagnostic.positions));
+        EXPECT_EQ(diagnostic.metrics.hpwl,lastComplete->metrics.hpwl);
+        EXPECT_EQ(diagnostic.metrics.weightedHpwl,lastComplete->metrics.weightedHpwl);
+        EXPECT_EQ(diagnostic.metrics.densityEnergy,lastComplete->metrics.densityEnergy);
+        EXPECT_DOUBLE_EQ(diagnostic.positions[4].x,29);EXPECT_DOUBLE_EQ(diagnostic.positions[4].y,28);
+    }
+    EXPECT_DOUBLE_EQ(database->originalPositions[0].x,initial.positions[0].x);
+    EXPECT_DOUBLE_EQ(database->originalPositions[4].x,29);EXPECT_DOUBLE_EQ(database->originalPositions[4].y,28);
 }
 }
 } // namespace placement

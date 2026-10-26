@@ -212,7 +212,7 @@ struct Config {
     std::optional<double> micronsPerDu; ///< 用户指定 μm/DU；空时遵循输入格式映射。
     double lambdaMin = 1e-8; ///< 密度惩罚系数的正绝对下界。
     double lambdaMax = 1e8; ///< 密度惩罚系数的有限绝对上界。
-    int convergenceWindow = 5; ///< overflow 连续达标次数，正数。
+    int convergenceWindow = 5; ///< overflow连续达标次数；实施契约固定为5，序列化保留但不允许缩短。
     int stagnationWindow = 20; ///< λ 触顶且无改善的允许连续次数，正数。
     double macroHpwlWeight = 1.0; ///< 宏代价归一化线长权重 α，非负。
     double macroDisplacementWeight = 0.1; ///< 宏代价归一化位移权重 β，非负。

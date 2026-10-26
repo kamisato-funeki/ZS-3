@@ -224,7 +224,7 @@ private slots:
         window.primaryCanvas()->setSelection({1});QVERIFY(window.findChild<QTreeWidget*>("attributes")->topLevelItemCount()>5);
         QVERIFY(window.findChild<QTreeWidget*>("attributes")->editTriggers()==QAbstractItemView::NoEditTriggers);
         if(!qEnvironmentVariableIsEmpty("PLACEMENT_SCREENSHOT_PATH")) {
-            window.show();QApplication::processEvents();QVERIFY(window.grab().save(qEnvironmentVariable("PLACEMENT_SCREENSHOT_PATH"))); // 独立可视QA截图路径由调用者明确提供。
+            window.show();QApplication::processEvents();window.primaryCanvas()->fit();QApplication::processEvents();QVERIFY(window.grab().save(qEnvironmentVariable("PLACEMENT_SCREENSHOT_PATH"))); // 使用真实展开后的viewport尺寸适应几何；截图路径由调用者明确提供。
         }
     }
     /** @brief TC-UI：假worker用受控屏障确认暂停与参数锁定，无任意sleep。无参数、无返回值。 */

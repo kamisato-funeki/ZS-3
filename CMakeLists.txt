@@ -97,6 +97,8 @@ endif()
 
 if(BUILD_TESTING)
   enable_testing()
+  add_executable(placement_profile tests/performance/profile.cpp)
+  target_link_libraries(placement_profile PRIVATE placement_application nlohmann_json::nlohmann_json)
   find_package(GTest REQUIRED)
   include(GoogleTest)
   file(GLOB test_sources CONFIGURE_DEPENDS tests/unit/*_test.cpp tests/integration/*_test.cpp)
@@ -132,6 +134,8 @@ if(BUILD_TESTING)
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/integration")
     add_test(NAME cli_headless_bmp COMMAND "${CMAKE_COMMAND}" -E env --unset=DISPLAY $<TARGET_FILE:placement_cli> export
       --aux "${CMAKE_SOURCE_DIR}/tests/fixtures/tiny/tiny.aux" --format bmp --output "${CMAKE_BINARY_DIR}/integration/headless.bmp" --overwrite)
+    add_test(NAME cli_exit_contract COMMAND "${CMAKE_COMMAND}" "-DCLI=$<TARGET_FILE:placement_cli>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DROOT=${CMAKE_BINARY_DIR}/integration" -P "${CMAKE_SOURCE_DIR}/tests/integration/cli_exit.cmake")
     if(KLAYOUT_EXECUTABLE)
       add_test(NAME cli_gds_fixture COMMAND placement_cli export --aux "${CMAKE_SOURCE_DIR}/tests/fixtures/tiny/tiny.aux"
         --format gds --output "${CMAKE_BINARY_DIR}/integration/layout.gds" --overwrite)

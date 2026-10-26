@@ -36,7 +36,7 @@ struct RunResult {
     std::string outputDirectory; ///< 已创建的独占结果目录。
     std::vector<std::shared_ptr<const Snapshot>> stages; ///< 已完整提交阶段，最多四份。
 };
-/** @brief 生成新任务身份，无文件或线程副作用。 @return UTC时间与进程内单调序号组合。 */
+/** @brief 生成新任务身份，无文件或线程副作用。 @return UTC、高分辨时钟、进程ID及进程内单调序号组合。 */
 std::string NewRunId();
 /** @brief 保留或可重现准备移动位置，固定对象逐项不变。
  * @param database 已验证拓扑。 @param config 初始策略/种子。 @param runId 新任务身份。 @param control 取消令牌。

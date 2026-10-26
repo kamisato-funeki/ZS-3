@@ -35,6 +35,7 @@ void help() {
         "       --continue-unconverged --max-iterations N\n"
         "  check: --snapshot FILE --scope all|macro [--output report.json]\n"
         "  export: --snapshot FILE --format placement|bmp|gds|report --output FILE [--overwrite]\n"
+        "  使用--snapshot时仍需原始输入(--aux或--lef/--def)，重算指标并核对输入指纹。\n"
         "  其他共享参数用 --set snake_case_key=value；配置与结果schemaVersion=1。\n";
 }
 /** @brief 严格解析显式参数，不隐式覆盖配置文件默认。
@@ -75,6 +76,7 @@ int main(int argc,char** argv) {
     if(argc==1||(argc==2&&(std::string(argv[1])=="--help"||std::string(argv[1])=="help"))) {help();return 0;}
     try {
         const Arguments arguments=parseArguments(argc,argv); // 命令行显式意图。
+        if(!arguments.snapshotPath.empty()&&arguments.input.auxPath.empty()&&arguments.input.lefPaths.empty()&&arguments.input.defPath.empty())placement::Throw("INPUT_INVALID","重载快照需同时指定原始输入，以核对指纹和完整网络拓扑","--snapshot");
         placement::Config config=arguments.configPath.empty()?placement::Config{}:placement::ParseConfig(placement::ReadText(arguments.configPath)); // 文件覆盖默认。
         config=placement::OverrideConfig(config,arguments.overrides);
         placement::ControlToken control; // 当前CLI任务令牌。
