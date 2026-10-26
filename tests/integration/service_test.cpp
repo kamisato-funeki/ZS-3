@@ -128,6 +128,8 @@ TEST(ApplicationPipeline,CompleteStagesUniqueTerminalAndReproducibility) {
     ASSERT_EQ(first.stages.size(),4U);
     EXPECT_EQ(terminalCount,1);
     EXPECT_EQ(CheckLegality(*first.stages.back()).totalCount,0U);
+    const std::string metricRows=ReadText((directory.path/"first/metrics.csv").string()); // 完整运行外部CSV，必须含四阶段而非只有算法回调轮次。
+    for(const std::string& stage:{"initial","global","macro_legal","standard_legal"})EXPECT_NE(metricRows.find(","+stage+","),std::string::npos); // stage为实施契约中的四个完成阶段。
     ControlToken secondControl; // 同种子重跑令牌。
     request.runId="second";request.outputDirectory=(directory.path/"second").string();
     const RunResult second=RunPipeline(request,secondControl); // 第二次独立运行。

@@ -85,10 +85,18 @@ RunResult RunPipeline(const RunRequest& request,ControlToken& control,const std:
         }
         if(deliver&&sink) sink(event);
     };
-    /** @brief 将一轮完整指标流式落盘并按需复制预览。 @param snapshot 算法完整轮次源。 无返回值。 */
-    const auto progress=[&](const Snapshot& snapshot) {
+    std::string lastMetricStage; // 最近CSV行的阶段；空表示尚未写入，覆盖initial或导入前置快照。
+    std::uint64_t lastMetricRevision=0; // 同一run内最近CSV行的完整几何修订。
+    /** @brief 完整指标落盘并按阶段/修订去重，阶段提交不遗漏initial。 @param snapshot 完整轮次或已提交阶段。 无返回值。 */
+    const auto recordMetrics=[&](const Snapshot& snapshot) {
+        if(lastMetricStage==snapshot.stage&&lastMetricRevision==snapshot.revision)return;
         const Metrics& value=snapshot.metrics; // 当前完整指标，不由GUI像素反推。
         metrics<<snapshot.runId<<','<<snapshot.stage<<','<<snapshot.iteration<<','<<snapshot.revision<<','<<csvNumber(value.elapsedMs)<<','<<csvNumber(value.hpwl)<<','<<csvNumber(value.weightedHpwl)<<','<<csvNumber(value.overflow)<<','<<csvNumber(value.densityEnergy)<<','<<csvNumber(value.lambda)<<','<<csvNumber(value.gamma)<<','<<csvNumber(value.step)<<','<<snapshot.termination<<'\n';
+        lastMetricStage=snapshot.stage;lastMetricRevision=snapshot.revision;
+    };
+    /** @brief 将一轮完整指标流式落盘并按需复制预览。 @param snapshot 算法完整轮次源。 无返回值。 */
+    const auto progress=[&](const Snapshot& snapshot) {
+        recordMetrics(snapshot);
         emit("metrics",&snapshot,{},false);
         const auto now=std::chrono::steady_clock::now(); // 单调预览节流时钟。
         if(lastPreview==std::chrono::steady_clock::time_point::min()||std::chrono::duration<double>(now-lastPreview).count()>=1.0/request.config.previewHz) {
@@ -109,6 +117,7 @@ RunResult RunPipeline(const RunRequest& request,ControlToken& control,const std:
         WriteTextAtomic((stageDirectory/"violations.json").string(),SerializeViolations(snapshot,report),persistence);
         result.stages.push_back(std::make_shared<const Snapshot>(std::move(snapshot)));
         const Snapshot& committed=*result.stages.back(); // 已经持有不可变几何的阶段。
+        recordMetrics(committed);
         emit("stage",&committed,committed.termination,true);
         ExportBmp(committed,(directory/"images"/(committed.stage+".bmp")).string(),request.config,control);
         ExportGds(committed,(directory/"gds"/(committed.stage+".gds")).string(),request.config,control);
