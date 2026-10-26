@@ -1,0 +1,5 @@
+# Keep output directory placeholders; ignore future generated contents.
+/build/*
+!/build/.gitkeep
+/runs/*
+!/runs/.gitkeep
