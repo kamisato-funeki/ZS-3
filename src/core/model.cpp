@@ -104,6 +104,8 @@ void ControlToken::cancel() {
 bool ControlToken::isCancelled() const noexcept { return cancelled_.load(std::memory_order_acquire); }
 /** @brief 无锁读取暂停请求；无参数。 @return 是否请求暂停。 */
 bool ControlToken::isPauseRequested() const noexcept { return pauseRequested_.load(std::memory_order_acquire); }
+/** @brief 读取工作线程暂停确认；无输入，无副作用。 @return 是否已确认暂停。 */
+bool ControlToken::isPaused() const noexcept { return paused_.load(std::memory_order_acquire); }
 
 /** @brief 取消时抛统一 CANCELLED；无参数、无返回值。 */
 void ControlToken::checkCancelled() const {
@@ -115,14 +117,17 @@ void ControlToken::safePoint(const std::function<void()>& onPaused) {
     checkCancelled();
     std::unique_lock<std::mutex> lock(mutex_); // 保护确认与条件变量等待。
     if (pauseRequested_.load(std::memory_order_acquire)) {
+        paused_.store(true, std::memory_order_release);
         lock.unlock();
-        if (onPaused) onPaused();
+        try { if (onPaused) onPaused(); }
+        catch (...) { paused_.store(false,std::memory_order_release); throw; }
         lock.lock();
         /** @brief 取消或恢复后结束等待，无参数。 @return 是否可以离开暂停等待。 */
         condition_.wait(lock, [this] {
             return cancelled_.load(std::memory_order_acquire) ||
                    !pauseRequested_.load(std::memory_order_acquire);
         });
+        paused_.store(false, std::memory_order_release);
     }
     lock.unlock();
     checkCancelled();

@@ -146,7 +146,10 @@ struct Metrics {
     std::optional<double> hpwl; ///< 无权真实半周长线长，DU。
     std::optional<double> weightedHpwl; ///< 加权真实半周长线长，DU。
     std::optional<double> overflow; ///< 不包含 filler 的真实电荷溢出率，无量纲。
-    std::optional<double> densityEnergy; ///< 当前网格离散静电能量，DU²。
+    std::optional<double> densityEnergy; ///< 当前网格离散静电能量，DU⁴，依据D=½AbΣρφ。
+    std::optional<double> lambda; ///< 当前密度惩罚系数，DU⁻³。
+    std::optional<double> gamma; ///< 当前WA平滑长度，DU。
+    std::optional<double> step; ///< 本轮已接受步长，量纲与冻结目标梯度一致。
     std::optional<double> elapsedMs; ///< 从任务开始累计耗时，毫秒。
     std::optional<double> meanDisplacement; ///< 对可比可移动对象的平均欧氏位移，DU。
     std::optional<double> maxDisplacement; ///< 对可比可移动对象的最大欧氏位移，DU。
@@ -165,6 +168,9 @@ struct Snapshot {
     Metrics metrics; ///< 当前几何的已计算指标。
     std::string termination; ///< 终止原因；空字符串表示阶段仍在运行。
     std::string legalitySummary; ///< 独立检查摘要；空字符串表示尚未检查。
+    bool fillerCapped=false; ///< 是否因filler数量上限扩大粒度，导出必须记录。
+    int gridNx=0; ///< 实际横向密度网格数，0表示尚未计算。
+    int gridNy=0; ///< 实际纵向密度网格数，0表示尚未计算。
 };
 
 /** @brief 集中有效配置；值类型按任务复制，默认值与设计 04/05/07/08 一致。 */
@@ -233,6 +239,8 @@ public:
     bool isCancelled() const noexcept;
     /** @brief 查询暂停请求，不代表工作线程已经停住。 @return 是否请求暂停。 */
     bool isPauseRequested() const noexcept;
+    /** @brief 查询工作线程是否已到达暂停安全点。 @return 已确认暂停；恢复或取消后最终清除。 */
+    bool isPaused() const noexcept;
     /** @brief 检查取消，无参数、无返回值；取消时抛出 Error(CANCELLED)。 */
     void checkCancelled() const;
     /** @brief 在完整提交/回滚之后处理暂停与取消；等待期间不持有业务锁。
@@ -243,6 +251,7 @@ public:
 private:
     std::atomic<bool> cancelled_{false}; ///< 发布不可逆取消标志，跨线程 acquire/release。
     std::atomic<bool> pauseRequested_{false}; ///< 发布暂停请求，不能替代暂停确认事件。
+    std::atomic<bool> paused_{false}; ///< 工作线程已确认暂停，用于GUI轮询，不表示半提交状态。
     std::mutex mutex_; ///< 保护条件变量的检查与等待，防止丢失唤醒。
     std::condition_variable condition_; ///< resume/cancel 唤醒安全点等待。
 };
