@@ -1,0 +1,14 @@
+UCLA nets 1.0
+
+# F-A: 两个真实引脚世界坐标为(2.5,1.5)/(7.5,6.5)，HPWL=10 DU。
+NumNets	:	2
+NumPins : 4
+
+NetDegree	:	2	AB
+A	O	:	0.5	-0.5 # 相对未旋转中心的偏移
+B I : -0.5 0.5
+
+# A到固定端口的HPWL=3.5+1.5=5 DU，权重0仍保留无权统计。
+NetDegree : 2 AP
+A O : 0.5 -0.5
+PORT	I	:	0	0

@@ -1,0 +1,52 @@
+UCLA scl 1.0
+
+# 五条2 DU高水平行，core=[0,10]×[0,10] DU。
+NumRows	:	5
+CoreRow Horizontal
+ Coordinate	:	0
+ Height : 2
+ Sitewidth : 1
+ Sitespacing : 1
+ Siteorient : N
+ Sitesymmetry : X Y
+ SubrowOrigin	:	0	NumSites	:	10
+End
+
+CoreRow Horizontal
+ Coordinate : 2
+ Height : 2
+ Sitewidth : 1
+ Sitespacing : 1
+ Siteorient : N
+ Sitesymmetry : X Y
+ SubrowOrigin : 0 NumSites : 10
+End
+# 纯注释不消耗行数量。
+CoreRow Horizontal
+ Coordinate : 4
+ Height : 2
+ Sitewidth : 1
+ Sitespacing : 1
+ Siteorient : N
+ Sitesymmetry : X Y
+ SubrowOrigin : 0 NumSites : 10
+End
+
+CoreRow Horizontal
+ Coordinate : 6
+ Height : 2
+ Sitewidth : 1
+ Sitespacing : 1
+ Siteorient : N
+ Sitesymmetry : X Y
+ SubrowOrigin : 0 NumSites : 10
+End
+CoreRow Horizontal
+ Coordinate : 8
+ Height : 2
+ Sitewidth : 1
+ Sitespacing : 1
+ Siteorient : N
+ Sitesymmetry : X Y
+ SubrowOrigin : 0 NumSites : 10
+End

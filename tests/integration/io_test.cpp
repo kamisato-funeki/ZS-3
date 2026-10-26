@@ -141,5 +141,227 @@ TEST(LefDefInput,NonzeroOriginAndEightDirections) {
     EXPECT_DOUBLE_EQ(database->originalPositions[0].y,2);
     }
 }
+/** @brief 可省略ORIGIN和四角矩形DIEAREA仍使用相同几何；无输入，无返回值。 */
+TEST(LefDefInput,OptionalOriginAndFourCornerRectangle) {
+    FixtureCopy copy("lefdef"); // 独立可变格式夹具。
+    copy.replace("tiny.lef"," ORIGIN 0 0 ;\n","");copy.replace("tiny.def","DIEAREA ( 0 0 ) ( 40000 24000 ) ;","DIEAREA ( 0 0 ) ( 40000 0 ) ( 40000 24000 ) ( 0 24000 ) ;");
+    InputSpec input; // 可选原点与四角合法矩形。
+    input.lefPaths={(copy.path/"tiny.lef").string()};input.defPath=(copy.path/"tiny.def").string();ControlToken control; // 本例取消令牌。
+    const auto database=LoadDesign(input,Config{},control); // 明确使用缺省ORIGIN=0。
+    const Vec2 point=pinPosition(*database,database->originalPositions,database->pins[0]); // F-H同一手算引脚。
+    EXPECT_DOUBLE_EQ(point.x,1.5);
+    EXPECT_DOUBLE_EQ(point.y,3);
+}
+/** @brief 为输入审计构造不执行位置准备的只读几何快照。
+ * @param database 已成功加载的只读数据库，由返回快照共享所有权。
+ * @return 保留全部输入坐标及固定性的initial快照，无文件写出或位置修改。 */
+Snapshot inputSnapshot(const std::shared_ptr<const DesignDatabase>& database) {
+    Snapshot snapshot; // 当前输入的独立位置缓冲，指标计算不隐式准备布局。
+    snapshot.database=database;
+    snapshot.datasetId=database->datasetId;
+    snapshot.runId="input-integration";
+    snapshot.stage="initial";
+    snapshot.positions=database->originalPositions;
+    return snapshot;
+}
+/** @brief TC-IN-02：同一F-A端到端夹具组合空行、整行/行尾注释和tab，实际引脚线长为手算10 DU。
+ * 无输入、无返回值；只读取仓库新增小夹具，不修改已有输入。 */
+TEST(BookshelfInput,WhitespaceCommentsTabsAndFaEndToEnd) {
+    InputSpec input; // 含空白及注释组合的独立BookShelf请求。
+    input.auxPath=fixture("input-equivalence/bookshelf/equivalent.aux");
+    ControlToken control; // 本次读取的独立取消令牌。
+    const auto database=LoadDesign(input,Config{},control); // 输入位置与引脚由解析器直接归一化，未进行auto准备。
+    ASSERT_EQ(database->nodes.size(),3U);
+    ASSERT_EQ(database->nets.size(),2U);
+    ASSERT_EQ(database->pins.size(),4U);
+    ASSERT_EQ(database->rows.size(),5U);
+    const Vec2 first=pinPosition(*database,database->originalPositions,database->pins[0]); // F-A引脚A真值(2.5,1.5)，DU。
+    const Vec2 second=pinPosition(*database,database->originalPositions,database->pins[1]); // F-A引脚B真值(7.5,6.5)，DU。
+    EXPECT_DOUBLE_EQ(first.x,2.5); EXPECT_DOUBLE_EQ(first.y,1.5);
+    EXPECT_DOUBLE_EQ(second.x,7.5); EXPECT_DOUBLE_EQ(second.y,6.5);
+    EXPECT_DOUBLE_EQ(std::abs(second.x-first.x)+std::abs(second.y-first.y),10.0);
+    EXPECT_TRUE(database->nodes[1].fixed);
+    EXPECT_TRUE(database->nodes[2].fixed);
+    EXPECT_EQ(database->nodes[1].kind,NodeKind::Standard);
+}
+/** @brief TC-IN-05：显式2/0网络权重必须分别保留，零权网络仍贡献无权HPWL。
+ * 无输入、无返回值；F-A网络10 DU加端口网络5 DU，期望无权15、加权20 DU。 */
+TEST(BookshelfInput,ExplicitTwoAndZeroWeightsProduceIndependentHpwl) {
+    InputSpec input; // 两条显式权重网络的完整BookShelf请求。
+    input.auxPath=fixture("input-equivalence/bookshelf/equivalent.aux");
+    ControlToken control; // 本例取消令牌。
+    const auto database=LoadDesign(input,Config{},control); // 直接加载权重2/0，未沿用缺省1。
+    ASSERT_EQ(database->nets.size(),2U);
+    EXPECT_EQ(database->nets[0].name,"AB"); EXPECT_DOUBLE_EQ(database->nets[0].weight,2.0);
+    EXPECT_EQ(database->nets[1].name,"AP"); EXPECT_DOUBLE_EQ(database->nets[1].weight,0.0);
+    const Metrics metrics=ComputeMetrics(inputSnapshot(database)); // 由真实引脚重新计算，而非读取输入文件中的期望指标。
+    ASSERT_TRUE(metrics.hpwl.has_value()); ASSERT_TRUE(metrics.weightedHpwl.has_value());
+    EXPECT_DOUBLE_EQ(*metrics.hpwl,15.0);
+    EXPECT_DOUBLE_EQ(*metrics.weightedHpwl,20.0);
+}
+/** @brief TC-IN-04/05：失败必须给出稳定错误代码，并能定位数量文件、非法数值行或悬空/重名对象。
+ * 无输入、无返回值；每个负例使用独占临时副本，保留已存在的小夹具及其他测试改动。 */
+TEST(BookshelfInput,InvalidInputsIdentifySourcePathLineOrObject) {
+    {
+        FixtureCopy copy("tiny"); // 仅改变节点声明数量的独立负例。
+        copy.replace("tiny.nodes","NumNodes : 3","NumNodes : 4");
+        InputSpec input; // 数量不一致输入。
+        input.auxPath=(copy.path/"tiny.aux").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"节点声明计数不一致应拒绝"; }
+        catch(const Error& error) { // 数量错误须直接定位来源文件，不能只给无上下文异常。
+            EXPECT_EQ(error.code,"INPUT_INVALID");
+            EXPECT_EQ(error.context,(copy.path/"tiny.nodes").string());
+            EXPECT_NE(std::string(error.what()).find("声明数量"),std::string::npos);
+        }
+    }
+    {
+        FixtureCopy copy("tiny"); // 第5行节点宽度不是数字的独立负例。
+        copy.replace("tiny.nodes","B 3 2","B invalid-width 2");
+        InputSpec input; // 非法数值字段请求。
+        input.auxPath=(copy.path/"tiny.aux").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"非法节点宽度应拒绝"; }
+        catch(const Error& error) { // 数值错误保留文件与一基源行号。
+            EXPECT_EQ(error.code,"INPUT_INVALID");
+            EXPECT_EQ(error.context,(copy.path/"tiny.nodes").string()+":5");
+            EXPECT_NE(std::string(error.what()).find("invalid-width"),std::string::npos);
+        }
+    }
+    {
+        FixtureCopy copy("tiny"); // 重复名称A的独立负例。
+        copy.replace("tiny.nodes","B 3 2","A 3 2");
+        InputSpec input; // 节点名称冲突输入。
+        input.auxPath=(copy.path/"tiny.aux").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"重复节点名称应拒绝"; }
+        catch(const Error& error) { // 重名错误必须定位冲突对象A。
+            EXPECT_EQ(error.code,"INPUT_INVALID"); EXPECT_EQ(error.context,"A");
+            EXPECT_NE(std::string(error.what()).find("重复节点"),std::string::npos);
+        }
+    }
+    {
+        FixtureCopy copy("tiny"); // 第6行网络引用不存在节点的独立负例。
+        copy.replace("tiny.nets","B I : 0 0","MISSING_NODE I : 0 0");
+        InputSpec input; // 引脚归属悬空请求。
+        input.auxPath=(copy.path/"tiny.aux").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"悬空引脚归属应拒绝"; }
+        catch(const Error& error) { // 同时保留对象名、输入文件与源行号。
+            EXPECT_EQ(error.code,"REFERENCE_MISSING");
+            EXPECT_EQ(error.context,"MISSING_NODE "+(copy.path/"tiny.nets").string()+":6");
+        }
+    }
+    {
+        FixtureCopy copy("tiny"); // 显式负权重的独立负例。
+        copy.replace("tiny.wts","UCLA wts 1.0","UCLA wts 1.0\nAB -1");
+        InputSpec input; // 权重越界请求。
+        input.auxPath=(copy.path/"tiny.aux").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"负网络权重应拒绝"; }
+        catch(const Error& error) { // 负权重错误明确定位网络AB。
+            EXPECT_EQ(error.code,"INPUT_INVALID"); EXPECT_EQ(error.context,"AB");
+            EXPECT_NE(std::string(error.what()).find("权重"),std::string::npos);
+        }
+    }
+}
+/** @brief TC-IN-07：缺LEF master引脚、DEF ROW所需SITE和LEF MACRO所需SITE分别拒绝并定位对象。
+ * 无输入、无返回值；只修改临时LEF/DEF副本，不修改已有夹具。 */
+TEST(LefDefInput,MissingPinsAndSitesHaveExplicitObjectContext) {
+    /** @brief 单项配套引用缺失变体，字段以名字说明失败来源。 */
+    struct MissingReference {
+        std::string file; ///< 副本中需要改变的文件名。
+        std::string before; ///< 必须存在且只替换一次的原文。
+        std::string after; ///< 造成一个明确缺失引用的新文本。
+        std::string context; ///< 应由业务Error精确定位的master/pin或site名称。
+    };
+    const std::array<MissingReference,3> cases={{
+        {"tiny.lef"," PIN P\n  DIRECTION INOUT ;\n  PORT\n   LAYER M1 ;\n   RECT 0.4 0.9 0.6 1.1 ;\n  END\n END P\n","","CELL/P"},
+        {"tiny.def","ROW R0 CoreSite","ROW R0 MISSING_ROW_SITE","MISSING_ROW_SITE"},
+        {"tiny.lef"," SITE CoreSite ;"," SITE MISSING_MASTER_SITE ;","MISSING_MASTER_SITE"}
+    }}; // 三项相互独立的LEF/DEF语义引用错误。
+    for(const MissingReference& missing:cases) { // 当前缺失引用规格。
+        FixtureCopy copy("lefdef"); // 当前失败场景独占副本。
+        copy.replace(missing.file,missing.before,missing.after);
+        InputSpec input; // 缺失一个语义引用的配套输入。
+        input.lefPaths={(copy.path/"tiny.lef").string()};
+        input.defPath=(copy.path/"tiny.def").string();
+        ControlToken control; // 当前负例取消令牌。
+        try { LoadDesign(input,Config{},control); FAIL()<<"缺失引用应拒绝: "<<missing.context; }
+        catch(const Error& error) { // 不允许解析器将缺失内容静默降级或当作空引脚。
+            EXPECT_EQ(error.code,"REFERENCE_MISSING")<<error.what();
+            EXPECT_EQ(error.context,missing.context);
+        }
+    }
+}
+/** @brief TC-INT-05：两格式等价F-A扩展小例逐项核对归一化范围、全部世界引脚、网络HPWL及固定性。
+ * 无输入、无返回值；独立纸面真值以μm给出，允许误差1e-12 μm。 */
+TEST(InputEquivalence,BookshelfAndLefDefMatchAllNormalizedGeometryAndMetrics) {
+    InputSpec bookshelfInput; // 显式1 μm/DU的BookShelf等价输入。
+    bookshelfInput.auxPath=fixture("input-equivalence/bookshelf/equivalent.aux");
+    InputSpec lefDefInput; // DBU/μm=2000的配套LEF/DEF等价输入。
+    lefDefInput.lefPaths={fixture("input-equivalence/lefdef/equivalent.lef")};
+    lefDefInput.defPath=fixture("input-equivalence/lefdef/equivalent.def");
+    Config bookshelfConfig; // 仅声明真实物理比例，不改变源坐标。
+    bookshelfConfig.micronsPerDu=1.0;
+    ControlToken control; // 两个串行独立加载共享取消请求，不跨线程。
+    const auto bookshelf=LoadDesign(bookshelfInput,bookshelfConfig,control); // BookShelf规范模型。
+    const auto lefDef=LoadDesign(lefDefInput,Config{},control); // LEF/DEF已从2000 DBU/μm归一化模型。
+    ASSERT_EQ(bookshelf->nodes.size(),3U); ASSERT_EQ(lefDef->nodes.size(),3U);
+    ASSERT_EQ(bookshelf->pins.size(),4U); ASSERT_EQ(lefDef->pins.size(),4U);
+    ASSERT_EQ(bookshelf->nets.size(),2U); ASSERT_EQ(lefDef->nets.size(),2U);
+    ASSERT_EQ(bookshelf->rows.size(),5U); ASSERT_EQ(lefDef->rows.size(),5U);
+    EXPECT_TRUE(bookshelf->physicalScaleKnown); EXPECT_TRUE(lefDef->physicalScaleKnown);
+    EXPECT_EQ(bookshelf->unit,"DU"); EXPECT_EQ(lefDef->unit,"um");
+    const std::array<Rect,3> expectedBounds={Rect{1,1,3,3},Rect{7,5,9,7},Rect{-1,3,-1,3}}; // 各节点纸面物理框，μm。
+    const std::array<Vec2,4> expectedPins={Vec2{2.5,1.5},Vec2{7.5,6.5},Vec2{2.5,1.5},Vec2{-1,3}}; // 原始网络顺序下全部世界引脚真值，μm。
+    const std::array<bool,3> expectedFixed={false,true,true}; // A可移动、B显式FIXED、PORT固定。
+    const std::array<double,2> expectedNetHpwl={10.0,5.0}; // AB和AP分别手算的无权HPWL，μm。
+    const std::array<std::shared_ptr<const DesignDatabase>,2> databases={bookshelf,lefDef}; // 分别对纸面真值核对，避免两个解析器以相同错误互相证明。
+    for(const auto& database:databases) { // 当前需要独立验证的格式模型。
+        const double scale=database->micronsPerDu; // 当前DU到μm的物理换算比例。
+        const Rect core=coreBounds(*database); // 原始行并集包围盒，DU。
+        const Rect chip=chipBounds(*database); // core及外部端口的显示范围，DU。
+        EXPECT_NEAR(core.lx*scale,0,1e-12); EXPECT_NEAR(core.ly*scale,0,1e-12);
+        EXPECT_NEAR(core.ux*scale,10,1e-12); EXPECT_NEAR(core.uy*scale,10,1e-12);
+        EXPECT_NEAR(chip.lx*scale,-1,1e-12); EXPECT_NEAR(chip.ly*scale,0,1e-12);
+        EXPECT_NEAR(chip.ux*scale,10,1e-12); EXPECT_NEAR(chip.uy*scale,10,1e-12);
+        for(std::size_t id=0;id<expectedBounds.size();++id) { // 对应NodeId的纸面范围索引。
+            const Rect bounds=nodeRect(database->nodes[id],database->originalPositions[id]); // 当前实例的方向后物理框，DU。
+            EXPECT_NEAR(bounds.lx*scale,expectedBounds[id].lx,1e-12);
+            EXPECT_NEAR(bounds.ly*scale,expectedBounds[id].ly,1e-12);
+            EXPECT_NEAR(bounds.ux*scale,expectedBounds[id].ux,1e-12);
+            EXPECT_NEAR(bounds.uy*scale,expectedBounds[id].uy,1e-12);
+            EXPECT_EQ(database->nodes[id].fixed,expectedFixed[id]);
+        }
+        for(std::size_t id=0;id<expectedPins.size();++id) { // 对应PinId的全部世界引脚真值索引。
+            const Vec2 point=pinPosition(*database,database->originalPositions,database->pins[id]); // 当前实际引脚位置，DU。
+            EXPECT_NEAR(point.x*scale,expectedPins[id].x,1e-12);
+            EXPECT_NEAR(point.y*scale,expectedPins[id].y,1e-12);
+        }
+        for(std::size_t id=0;id<expectedNetHpwl.size();++id) { // 对应NetId的两引脚网络索引。
+            const Net& net=database->nets[id]; // 当前真实网络引用。
+            ASSERT_EQ(net.pinIds.size(),2U);
+            const Vec2 first=pinPosition(*database,database->originalPositions,database->pins[net.pinIds[0]]); // 当前网络首引脚，DU。
+            const Vec2 second=pinPosition(*database,database->originalPositions,database->pins[net.pinIds[1]]); // 当前网络次引脚，DU。
+            const double length=(std::abs(second.x-first.x)+std::abs(second.y-first.y))*scale; // 两引脚网络独立曼哈顿长度，μm。
+            EXPECT_NEAR(length,expectedNetHpwl[id],1e-12);
+        }
+        EXPECT_DOUBLE_EQ(database->nets[0].weight,2.0); EXPECT_DOUBLE_EQ(database->nets[1].weight,0.0);
+        const Metrics metrics=ComputeMetrics(inputSnapshot(database)); // 对本格式独立计算完整真实指标，不跨dataset调用CompareStages。
+        ASSERT_TRUE(metrics.hpwl.has_value()); ASSERT_TRUE(metrics.weightedHpwl.has_value());
+        EXPECT_NEAR(*metrics.hpwl*scale,15.0,1e-12);
+        EXPECT_NEAR(*metrics.weightedHpwl*scale,20.0,1e-12);
+    }
+    for(std::size_t id=0;id<bookshelf->nodes.size();++id) { // 跨格式显式核对稳定节点名称、类别和输入方向。
+        EXPECT_EQ(bookshelf->nodes[id].name,lefDef->nodes[id].name);
+        EXPECT_EQ(bookshelf->nodes[id].kind,lefDef->nodes[id].kind);
+        EXPECT_EQ(bookshelf->originalPositions[id].orientation,lefDef->originalPositions[id].orientation);
+    }
+    for(std::size_t id=0;id<bookshelf->pins.size();++id) { // 跨格式全部引脚归属必须一致。
+        EXPECT_EQ(bookshelf->pins[id].nodeId,lefDef->pins[id].nodeId);
+        EXPECT_EQ(bookshelf->pins[id].netId,lefDef->pins[id].netId);
+    }
+}
 } // namespace
 } // namespace placement

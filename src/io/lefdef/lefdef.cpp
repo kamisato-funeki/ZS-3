@@ -22,6 +22,7 @@ struct Master {
     double height=0; ///< N朝向高度，μm。
     Vec2 origin; ///< LEF ORIGIN：几何归一化到SIZE框前施加的平移，μm。
     std::string category; ///< LEF CLASS。
+    std::string siteName; ///< 可空MACRO SITE引用；出现时必须在配套LEF中存在。
     std::vector<Orientation> orientations; ///< 由SYMMETRY生成的允许方向群。
     std::map<std::string,Vec2> pins; ///< 引脚几何bbox中心，相对LEF原点，μm。
 };
@@ -154,6 +155,8 @@ int lefPinCallback(LefDefParser::lefrCallbackType_e,LefDefParser::lefiPin* pin,v
                     const auto* polygon=geometry->getPolygon(item); // 输入多边形，线长仅使用其bbox。
                     for(int vertex=0;vertex<polygon->numPoints;++vertex) // 当前多边形顶点。
                         extend(box,initialized,{polygon->x[vertex],polygon->y[vertex]});
+                } else if(geometry->itemType(item)==LefDefParser::lefiGeomPathE||geometry->itemType(item)==LefDefParser::lefiGeomPathIterE||geometry->itemType(item)==LefDefParser::lefiGeomRectIterE||geometry->itemType(item)==LefDefParser::lefiGeomPolygonIterE||geometry->itemType(item)==LefDefParser::lefiGeomViaE||geometry->itemType(item)==LefDefParser::lefiGeomViaIterE) {
+                    Throw("UNSUPPORTED","PIN几何仅支持非重复RECT/POLYGON",context.currentMaster+"/"+pin->name());
                 }
             }
         }
@@ -167,8 +170,11 @@ int macroCallback(LefDefParser::lefrCallbackType_e,LefDefParser::lefiMacro* macr
     // 仅更新当前事务master元数据，context持有独立副本。
     return guarded(data,[macro](ParseContext& context) {
         Master& master=context.masters.at(context.currentMaster); // 当前master的独占可变副本。
+        if(!macro->hasSize()) Throw("INPUT_INVALID","LEF MACRO缺少SIZE",context.currentMaster);
+        if(macro->hasSitePattern()) Throw("UNSUPPORTED","本版不支持MACRO多SITE pattern",context.currentMaster);
         master.width=macro->sizeX();master.height=macro->sizeY();
-        master.origin={macro->originX(),macro->originY()};master.category=macro->macroClass();
+        master.origin=macro->hasOrigin()?Vec2{macro->originX(),macro->originY()}:Vec2{};master.category=macro->macroClass();
+        master.siteName=macro->hasSiteName()?macro->siteName():"";
         master.orientations=symmetry(macro->hasXSymmetry(),macro->hasYSymmetry(),macro->has90Symmetry());
     });
 }
@@ -207,6 +213,7 @@ int componentCallback(LefDefParser::defrCallbackType_e,LefDefParser::defiCompone
         if(found==context.masters.end()) Throw("REFERENCE_MISSING","DEF实例缺少LEF master",source->name());
         if(source->hasRegionName()||source->hasRegionBounds()) Throw("UNSUPPORTED","不支持实例REGION约束",source->id());
         const Master& master=found->second; // 配套master元数据。
+        if(!master.siteName.empty()&&!context.sites.count(master.siteName)) Throw("REFERENCE_MISSING","MACRO引用未定义SITE",master.siteName);
         Node node; // 统一实例记录。
         node.id=context.database.nodes.size();node.name=source->id();node.masterName=source->name();
         node.width=master.width;node.height=master.height;node.fixed=source->isFixed()||source->isCover();
@@ -296,8 +303,21 @@ int dieCallback(LefDefParser::defrCallbackType_e,LefDefParser::defiBox* source,v
     // 非矩形die不能静默降级为bbox；context只记录校验成功摘要。
     return guarded(data,[source](ParseContext& context) {
         const auto points=source->getPoint(); // 上游DIEAREA顶点。
-        if(points.numPoints!=2) Throw("UNSUPPORTED","仅支持两角点矩形DIEAREA");
-        if(points.x[0]>=points.x[1]||points.y[0]>=points.y[1]) Throw("INPUT_INVALID","DIEAREA无正面积");
+        if(points.numPoints==2) {
+            if(points.x[0]>=points.x[1]||points.y[0]>=points.y[1]) Throw("INPUT_INVALID","DIEAREA无正面积");
+        }else {
+            const int count=points.numPoints==5&&points.x[0]==points.x[4]&&points.y[0]==points.y[4]?4:points.numPoints; // 去掉可选闭合重复点。
+            if(count!=4) Throw("UNSUPPORTED","仅支持矩形DIEAREA");
+            std::set<int> xs; // 四角的两种横坐标，DBU。
+            std::set<int> ys; // 四角的两种纵坐标，DBU。
+            std::set<std::pair<int,int>> corners; // first为x DBU，second为y DBU，四个角必须唯一。
+            for(int vertex=0;vertex<4;++vertex) { // 当前边起点索引。
+                const int next=(vertex+1)%4; // 闭合边终点索引。
+                if(points.x[vertex]!=points.x[next]&&points.y[vertex]!=points.y[next]) Throw("UNSUPPORTED","DIEAREA存在非轴对齐边");
+                xs.insert(points.x[vertex]);ys.insert(points.y[vertex]);corners.emplace(points.x[vertex],points.y[vertex]);
+            }
+            if(xs.size()!=2||ys.size()!=2||corners.size()!=4) Throw("UNSUPPORTED","DIEAREA不是正面积矩形");
+        }
         context.database.auditWarnings.push_back("矩形DIEAREA已验证；core按可放置行并集bbox定义");
     });
 }

@@ -1,0 +1,9 @@
+UCLA nodes 1.0
+
+# 两个2×2 DU标准单元及一个零面积端口。
+NumNodes	:	3
+NumTerminals	:	1
+
+A	2	2 # F-A 的第一个单元
+B 2 2
+PORT	0	0	terminal

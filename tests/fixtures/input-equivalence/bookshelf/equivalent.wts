@@ -1,0 +1,5 @@
+UCLA wts 1.0
+
+# 显式权重2/0：无权HPWL=15 DU，加权HPWL=20 DU。
+AB	2
+AP 0 # 零权网络仍存在且参与无权HPWL。
