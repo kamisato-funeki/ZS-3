@@ -1,0 +1,45 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "placement: configure debug",
+      "type": "process",
+      "command": "cmake",
+      "args": [
+        "--fresh",
+        "-S",
+        "${workspaceFolder}",
+        "-B",
+        "${workspaceFolder}/build/debug",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DBUILD_GUI=ON",
+        "-DBUILD_TESTING=OFF",
+        "-DPLACEMENT_DEPS_PREFIX=",
+        "-Dnlohmann_json_DIR=/usr/share/cmake/nlohmann_json"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "placement: build debug",
+      "type": "process",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build/debug",
+        "--parallel",
+        "2",
+        "--target",
+        "placement_gui",
+        "placement_cli"
+      ],
+      "dependsOn": "placement: configure debug",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    }
+  ]
+}

@@ -139,6 +139,8 @@ ctest --test-dir build/default --output-on-failure
 
 ### 2.4 本开发环境的启动命令
 
+在 VS Code 中按 F5 调试程序时，选择 `Placement: GUI (GDB)` 或 `Placement: CLI (GDB)`，启动前会自动构建 Debug 版本。扩展、构建路径及 CMake `scriptPath` 报错的处理见 [VS Code 调试说明](docs/14-VSCode调试.md)。
+
 本机已安装系统开发包，当前使用系统 FFTW、OpenSSL、nlohmann/json、GoogleTest 和 Qt 6。2026-10-26 因 hgfs 共享目录的符号链接和对象文件读回限制，验证构建使用 `/tmp/school3-system-check`，同时包含 GUI 和 CLI。2026-11-01 按2.3节清理失效缓存后，项目内 `build/default` 也已成功构建，85/85 项 CTest 通过；若共享目录再次出现文件系统错误，仍可使用下面的 `/tmp` 构建方式。
 
 `/tmp` 是 Linux 根目录下的临时目录，不在项目目录内。可以在文件管理器按 `Ctrl+L`，输入 `/tmp/school3-system-check` 查看；临时目录被清理后需要重新构建。
@@ -447,5 +449,6 @@ ctest --test-dir /tmp/school3-system-check --output-on-failure
 | [11 开发协作与子代理使用](docs/11-开发协作与子代理使用.md) | 中文注释、协作和提交规范 |
 | [12 开发与验证记录](docs/12-开发与验证记录.md) | 已执行的构建、运行、性能和限制 |
 | [13 验收追踪](docs/13-验收追踪.md) | 全部88项验收的实际证据状态 |
+| [14 VS Code 调试](docs/14-VSCode调试.md) | F5程序调试、Debug构建与脚本调试报错处理 |
 
 开发遵守 [AGENTS.md](AGENTS.md) 及各级补充规范：保持模块边界、完整中文语义注释和Doxygen契约，每个经过验证的完整功能单元形成中文本地提交。外部参考资料保持只读，大型输入和运行产物不入库。第三方依赖的版本及各组件许可证分别记录，不假定上游仓库的总许可证覆盖全部子组件。
