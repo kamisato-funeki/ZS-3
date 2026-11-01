@@ -94,6 +94,9 @@ private:
     void refreshStages();
     /** @brief 将阶段选择应用到画布。 @param right 是否右视图。 无返回值。 */
     void chooseStage(bool right);
+    /** @brief 按两侧实际显示包统一更新底部指标、摘要、属性、违规、图层与比较表。
+     * @param right 双视图时将右侧设为属性/违规检查源；单视图始终检查左侧。 无返回值，仅主线程使用。 */
+    void refreshSnapshotUi(bool right);
     /** @brief 展示只读对象属性和所属网络。 @param ids 当前稳定ID选择。 无返回值。 */
     void properties(QSet<qulonglong> ids);
     /** @brief 执行精确/前缀名称查找的下一页。 @param reset 是否从头开始。 无返回值。 */
@@ -135,6 +138,7 @@ private:
     bool closing_=false; ///< 已确认协作关闭。
     bool closeAllowed_=false; ///< 所有任务已停，可完成closeEvent。
     bool comparison_=false; ///< 是否显示第二画布。
+    bool inspectRight_=false; ///< 属性和违规面板是否明确绑定当前可见右侧，随阶段/选择更新。
     bool processing_=false; ///< 防止consume重入。
     std::size_t searchCursor_=0; ///< 名称候选下一页起始NodeId。
     TaskController mainTask_; ///< 唯一主任务线程及令牌。
@@ -147,7 +151,7 @@ private:
     QComboBox* leftStage_=nullptr; ///< 左视图阶段选择。
     QComboBox* rightStage_=nullptr; ///< 右视图阶段选择。
     QTreeWidget* stageTree_=nullptr; ///< 四阶段树。
-    QLabel* summary_=nullptr; ///< 数据集审计摘要。
+    QLabel* summary_=nullptr; ///< 当前可见源的数据集审计及逐侧快照准备摘要。
     QTreeWidget* attributes_=nullptr; ///< 只读对象属性。
     QTreeWidget* comparisonTable_=nullptr; ///< 同数据集双视图指标绝对值、差值与改善率。
     QTreeWidget* violations_=nullptr; ///< 有界违规列表。
@@ -164,7 +168,7 @@ private:
     QComboBox* logLevel_=nullptr; ///< 日志严重度过滤。
     std::deque<QString> logs_; ///< 最新5000条日志。
     ConvergencePlot* plot_=nullptr; ///< 5000点收敛曲线。
-    QLabel* metrics_=nullptr; ///< 同轮状态指标。
+    QLabel* metrics_=nullptr; ///< 当前可见源同轮状态指标，双视图明确逐侧显示。
     QLabel* exportStatus_=nullptr; ///< 独立导出状态及路径。
     QAction* openAux_=nullptr; ///< BookShelf打开。
     QAction* openLef_=nullptr; ///< LEF/DEF打开。

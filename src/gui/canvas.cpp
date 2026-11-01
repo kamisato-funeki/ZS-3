@@ -6,6 +6,8 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QKeyEvent>
+#include <QShowEvent>
+#include <QResizeEvent>
 #include <cmath>
 #include <algorithm>
 
@@ -63,7 +65,7 @@ Canvas::Canvas(QWidget* parent):QGraphicsView(parent) {
 void Canvas::setPacket(std::shared_ptr<const RenderPacket> packet) {
     if(packet_==packet)return;
     const bool refit=!packet_||!packet||packet_->snapshot->datasetId!=packet->snapshot->datasetId; ///< 新数据集需要fit。
-    scene()->clear();packet_=std::move(packet);heat_.reset();network_=NetworkOverlay{};if(refit)selected_.clear();
+    scene()->clear();packet_=std::move(packet);heat_.reset();network_=NetworkOverlay{};if(refit){selected_.clear();pendingCamera_.reset();pendingFit_=false;}
     if(packet_) {
         for(std::size_t i=0;i<packet_->drawBlocks.size();++i) { // i 为64×64空间块编号。
             if(!packet_->drawBlocks[i].empty()) scene()->addItem(new BlockItem(*this,packet_->drawBlocks[i],packet_->blockBounds[i],&packet_->statistics[i],&packet_->detailBlocks[i]));
@@ -79,10 +81,38 @@ void Canvas::setPacket(std::shared_ptr<const RenderPacket> packet) {
 std::shared_ptr<const RenderPacket> Canvas::packet() const {return packet_;}
 /** @brief 读取数学相机。 */
 Camera Canvas::camera() const {const QPointF center=mapToScene(viewport()->rect().center()); /* center 为负y场景中心。 */return {{center.x(),-center.y()},1/std::max(transform().m11(),1e-20)};}
-/** @brief 同步数学相机，不再次发信号。 */
-void Canvas::setCamera(Camera camera) {if(!(camera.duPerPixel>0&&std::isfinite(camera.duPerPixel))) return;const double scale=std::clamp(1/camera.duPerPixel,fitScale_*1e-3,fitScale_*1e3); /* scale 为受限像素/DU。 */setTransform(QTransform::fromScale(scale,scale));centerOn(camera.center.x,-camera.center.y);viewport()->update();}
-/** @brief 适应完整显示域或core。 */
-void Canvas::fit(bool core) {if(!packet_) return;const QRectF bounds=SceneRect(core?packet_->core:packet_->chip); /* bounds 为场景目标域。 */fitScale_=0.9*std::min(viewport()->width()/std::max(bounds.width(),1.0),viewport()->height()/std::max(bounds.height(),1.0));setCamera({{bounds.center().x(),-bounds.center().y()},1/fitScale_});notifyCamera();}
+/** @brief 同步数学相机，不再次发信号；契约见声明。 @param camera 数学中心与正DU/px。 无返回值，隐藏时暂存。 */
+void Canvas::setCamera(Camera camera) {
+    if(!(camera.duPerPixel>0&&std::isfinite(camera.duPerPixel)&&std::isfinite(camera.center.x)&&std::isfinite(camera.center.y)))return;
+    if(!isVisible()||viewport()->width()<=0||viewport()->height()<=0){pendingCamera_=camera;return;}
+    if(pendingFit_&&packet_){
+        const QRectF bounds=SceneRect(pendingCore_?packet_->core:packet_->chip); // 有效视口下的缩放限制基准，DU。
+        fitScale_=0.9*std::min(viewport()->width()/std::max(bounds.width(),1.0),viewport()->height()/std::max(bounds.height(),1.0));
+    }
+    pendingFit_=false;pendingCamera_.reset();
+    const double scale=std::clamp(1/camera.duPerPixel,fitScale_*1e-3,fitScale_*1e3); // 有限正比例，px/DU，禁止产生不可逆变换。
+    setTransform(QTransform::fromScale(scale,scale));centerOn(camera.center.x,-camera.center.y);viewport()->update();
+}
+/** @brief 适应完整显示域或core；契约见声明。 @param core 是否适应core。 无返回值，未就绪视口延后一次应用。 */
+void Canvas::fit(bool core) {
+    if(!packet_)return;
+    pendingFit_=true;pendingCore_=core;pendingCamera_.reset();
+    // 隐藏比较面板的宽度可能为零；此时fit会使变换不可逆，连背景也无法绘制。
+    if(!isVisible()||viewport()->width()<=0||viewport()->height()<=0)return;
+    const QRectF bounds=SceneRect(core?packet_->core:packet_->chip); // 场景目标域，DU。
+    fitScale_=0.9*std::min(viewport()->width()/std::max(bounds.width(),1.0),viewport()->height()/std::max(bounds.height(),1.0));
+    setCamera({{bounds.center().x(),-bounds.center().y()},1/fitScale_});notifyCamera();
+}
+/** @brief 在Qt正常显示/尺寸事件后完成一次待定导航，契约见声明。 */
+void Canvas::applyPendingCamera(){
+    if(!isVisible()||viewport()->width()<=0||viewport()->height()<=0)return;
+    if(pendingCamera_){const Camera camera=*pendingCamera_; /* camera为隐藏期间最新被动相机。 */setCamera(camera);}
+    else if(pendingFit_)fit(pendingCore_);
+}
+/** @brief 显示时先让QGraphicsView更新视口，再完成待定导航。 @param event 显示事件。 无返回值。 */
+void Canvas::showEvent(QShowEvent* event){QGraphicsView::showEvent(event);applyPendingCamera();}
+/** @brief resize不重新fit已就绪画布，仅完成此前未完成的导航。 @param event 尺寸事件。 无返回值。 */
+void Canvas::resizeEvent(QResizeEvent* event){QGraphicsView::resizeEvent(event);applyPendingCamera();}
 /** @brief 定位目标并留10%空白。 */
 void Canvas::locate(Rect rect) {const double width=std::max(rect.width()*1.2,1.0); /* width 为带边距横跨度DU。 */const double height=std::max(rect.height()*1.2,1.0); /* height 为带边距纵跨度DU。 */setCamera({{(rect.lx+rect.ux)/2,(rect.ly+rect.uy)/2},std::max(width/std::max(1,viewport()->width()),height/std::max(1,viewport()->height()))});notifyCamera();}
 /** @brief 同步只读选择并可发通知。 */

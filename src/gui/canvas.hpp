@@ -29,9 +29,11 @@ public:
     std::shared_ptr<const RenderPacket> packet() const;
     /** @brief 获取数学相机。 @return 中心与DU/px。 */
     Camera camera() const;
-    /** @brief 安装数学相机，不再发同步信号。 @param camera 另一视图相机。 无返回值。 */
+    /** @brief 安装数学相机，不再发同步信号；隐藏或零尺寸时暂存，到首次有效show/resize时仅应用一次。
+     * @param camera 另一视图数学中心DU与正DU/px，非有限值忽略。 无返回值，仅主线程访问。 */
     void setCamera(Camera camera);
-    /** @brief 适应芯片或core。 @param core true选择core。 无返回值，会发相机变更。 */
+    /** @brief 适应芯片或core；隐藏或零尺寸时延后到有效show/resize，不能生成零比例。
+     * @param core true选择core。 无返回值，主动fit应用后发相机变更，被动相机优先且不发信号。 */
     void fit(bool core=false);
     /** @brief 放大定位数学矩形。 @param rect 目标DU区域。 无返回值。 */
     void locate(Rect rect);
@@ -63,6 +65,10 @@ signals:
     /** @brief 连续慢帧触发粗LOD。 @param message 可读说明。 无返回值。 */
     void renderWarning(QString message);
 protected:
+    /** @brief 显示后应用隐藏期间待定的fit或被动相机；无返回值。 @param event Qt显示事件，主线程借用。 */
+    void showEvent(QShowEvent* event) override;
+    /** @brief 视口获得有效尺寸后应用一次待定相机；正常resize保持现有导航语义，无返回值。 @param event 尺寸事件。 */
+    void resizeEvent(QResizeEvent* event) override;
     /** @brief 批量辅助图层。 @param painter 场景画笔。 @param rect 暴露场景矩形。 无返回值。 */
     void drawBackground(QPainter* painter,const QRectF& rect) override;
     /** @brief 绘制只读选择/网络/违规。 @param painter 场景画笔。 @param rect 暴露区域。 无返回值。 */
@@ -82,6 +88,8 @@ protected:
     /** @brief 结束空格平移。 @param event 键盘事件。 无返回值。 */
     void keyReleaseEvent(QKeyEvent* event) override;
 private:
+    /** @brief 在已显示且视口非空时完成一次待定导航；无输入、无返回值，不重复fit。 */
+    void applyPendingCamera();
     /** @brief 发送当前相机，不携领域位置写入；无参数、无返回值。 */
     void notifyCamera();
     std::shared_ptr<const RenderPacket> packet_; ///< 主线程当前完整包。
@@ -99,6 +107,9 @@ private:
     RenderStatistics renderStatistics_; ///< 最近真实绘制及累计粗化计数。
     std::size_t cycle_=0; ///< Alt点选候选循环位置。
     double fitScale_=1; ///< 初始fit像素/DU，限制缩放范围。
+    bool pendingFit_=false; ///< 隐藏或零尺寸视口尚未完成的主动fit。
+    bool pendingCore_=false; ///< 待定fit是否使用core而非chip。
+    std::optional<Camera> pendingCamera_; ///< 待显示后安装的被动同步相机，优先于待定fit且不发同步信号。
     friend class BlockItem; ///< 批量图元读取图层及粗LOD。
 };
 } // namespace placement::gui

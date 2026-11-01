@@ -35,7 +35,7 @@
 
 namespace placement::gui {
 namespace {
-/** @brief 可选数值的人类显示。 @param value 可空数值。 @return 保留12位有效数字，空为破折号。 */
+/** @brief 可选数值的人类显示。 @param value 可空数值。 @return 保留12位有效数字，空或非有限数为破折号。 */
 QString number(std::optional<double> value){return value&&std::isfinite(*value)?QString::number(*value,'g',12):QStringLiteral("—");}
 /** @brief 给主窗口添加可停靠组件。 @param window 主线程窗口。 @param title 面板标题。 @param widget 被接管组件。 @param area 停靠区域。 @return 主窗口拥有的Dock。 */
 QDockWidget* dock(QMainWindow& window,const QString& title,QWidget* widget,Qt::DockWidgetArea area){auto* result=new QDockWidget(title,&window); /* result 为主线程父所有的停靠面板。 */result->setWidget(widget);window.addDockWidget(area,result);return result;}
@@ -152,15 +152,15 @@ void MainWindow::buildUi(){
     leftLayout->setContentsMargins(0,0,0,0);leftStage_=new QComboBox(leftPanel);leftStage_->setObjectName("leftStage");left_=new Canvas(leftPanel);left_->setObjectName("primaryCanvas");leftLayout->addWidget(leftStage_);leftLayout->addWidget(left_);
     auto* rightPanel=new QWidget(splitter); ///< 右对比容器。
     auto* rightLayout=new QVBoxLayout(rightPanel); ///< 右容器布局。
-    rightLayout->setContentsMargins(0,0,0,0);rightStage_=new QComboBox(rightPanel);right_=new Canvas(rightPanel);rightLayout->addWidget(rightStage_);rightLayout->addWidget(right_);rightPanel->hide();setCentralWidget(splitter);
+    rightLayout->setContentsMargins(0,0,0,0);rightStage_=new QComboBox(rightPanel);rightStage_->setObjectName("rightStage");right_=new Canvas(rightPanel);rightLayout->addWidget(rightStage_);rightLayout->addWidget(right_);rightPanel->hide();setCentralWidget(splitter);
     /** @brief 左相机同步数学中心和比例；捕获this主窗口。 @param x DU。 @param y DU。 @param du DU/px。 无返回值。 */
     connect(left_,&Canvas::cameraChanged,this,[this](double x,double y,double du){if(comparison_)right_->setCamera({{x,y},du});});
     /** @brief 右相机同步且setCamera不再次发信号；捕获this。 @param x DU。 @param y DU。 @param du DU/px。 无返回值。 */
     connect(right_,&Canvas::cameraChanged,this,[this](double x,double y,double du){if(comparison_)left_->setCamera({{x,y},du});});
     /** @brief 左选择按NodeId同步，捕获this。 @param ids 稳定ID集。 无返回值。 */
-    connect(left_,&Canvas::selectionChanged,this,[this](QSet<qulonglong> ids){if(comparison_)right_->setSelection(ids,false);properties(std::move(ids));});
+    connect(left_,&Canvas::selectionChanged,this,[this](QSet<qulonglong> ids){if(comparison_)right_->setSelection(ids,false);refreshSnapshotUi(false);});
     /** @brief 右选择按NodeId同步，捕获this。 @param ids 稳定ID集。 无返回值。 */
-    connect(right_,&Canvas::selectionChanged,this,[this](QSet<qulonglong> ids){left_->setSelection(ids,false);properties(std::move(ids));});
+    connect(right_,&Canvas::selectionChanged,this,[this](QSet<qulonglong> ids){left_->setSelection(ids,false);refreshSnapshotUi(true);});
     /** @brief 状态栏数学坐标无回写，捕获this。 @param x DU。 @param y DU。 无返回值。 */
     connect(left_,&Canvas::pointerChanged,this,[this](double x,double y){statusBar()->showMessage(tr("x=%1  y=%2  · %3 DU/px · 选中 %4").arg(x,0,'g',12).arg(y,0,'g',12).arg(left_->camera().duPerPixel,0,'g',5).arg(left_->selection().size()));});
     connect(left_,&Canvas::renderWarning,this,&MainWindow::log);connect(right_,&Canvas::renderWarning,this,&MainWindow::log);
@@ -170,7 +170,7 @@ void MainWindow::buildUi(){
     connect(rightStage_,&QComboBox::currentIndexChanged,this,[this](int index){Q_UNUSED(index)chooseStage(true);});
     auto* project=new QWidget(this); ///< 项目/查找左面板。
     auto* projectLayout=new QVBoxLayout(project); ///< 项目面板布局。
-    summary_=new QLabel(tr("尚未打开数据集"),project);summary_->setWordWrap(true);summary_->setTextInteractionFlags(Qt::TextSelectableByMouse);projectLayout->addWidget(summary_);
+    summary_=new QLabel(tr("尚未打开数据集"),project);summary_->setObjectName("projectSummary");summary_->setWordWrap(true);summary_->setTextInteractionFlags(Qt::TextSelectableByMouse);projectLayout->addWidget(summary_);
     stageTree_=tree({tr("阶段"),tr("状态")},project);stageTree_->setObjectName("stageTree");projectLayout->addWidget(stageTree_);
     /** @brief 完成阶段双击定位到主画布；捕获this。 @param item 已完成阶段项。 @param column 点击列。 无返回值。 */
     connect(stageTree_,&QTreeWidget::itemDoubleClicked,this,[this](QTreeWidgetItem* item,int column){Q_UNUSED(column)if(!(item->flags()&Qt::ItemIsEnabled))return;const int index=leftStage_->findData(item->data(0,Qt::UserRole)); /* index 为阶段下拉对应项。 */if(index>=0)leftStage_->setCurrentIndex(index);});
@@ -206,13 +206,13 @@ void MainWindow::buildUi(){
     });
     auto* violationPanel=new QWidget(inspectTabs); ///< 违规过滤与详情。
     auto* violationLayout=new QVBoxLayout(violationPanel); ///< 违规布局。
-    violationFilter_=new QComboBox(violationPanel);violationFilter_->addItem(tr("全部类型"));violations_=tree({tr("类型"),tr("严重度"),tr("数值"),tr("说明")},violationPanel);violationLayout->addWidget(violationFilter_);violationLayout->addWidget(violations_);inspectTabs->addTab(violationPanel,tr("违规 / 定位"));dock(*this,tr("只读检查"),inspectTabs,Qt::RightDockWidgetArea);
+    violationFilter_=new QComboBox(violationPanel);violationFilter_->setObjectName("violationFilter");violationFilter_->addItem(tr("全部类型"));violations_=tree({tr("类型"),tr("严重度"),tr("数值"),tr("说明")},violationPanel);violationLayout->addWidget(violationFilter_);violationLayout->addWidget(violations_);inspectTabs->addTab(violationPanel,tr("违规 / 定位"));dock(*this,tr("只读检查"),inspectTabs,Qt::RightDockWidgetArea);
     violations_->setObjectName("violations");
     /** @brief 违规类型过滤，仅更新有界列表，捕获this。 @param index 类型选项。 无返回值。 */
-    connect(violationFilter_,&QComboBox::currentIndexChanged,this,[this](int index){Q_UNUSED(index)if(right_->packet()&&right_->packet()->snapshot==violationSnapshot_)showViolations(*right_->packet());else if(left_->packet())showViolations(*left_->packet());});
+    connect(violationFilter_,&QComboBox::currentIndexChanged,this,[this](int index){Q_UNUSED(index)Canvas* source=inspectRight_?right_:left_; /* source为统一检查侧，隐藏右侧不参与过滤。 */if(source->packet())showViolations(*source->packet());});
     /** @brief 违规双击带10%边距定位并临时轮廓选中隐藏对象；捕获this。
      * @param item 有界违规项。 @param column 点击列。 无返回值。 */
-    connect(violations_,&QTreeWidget::itemDoubleClicked,this,[this](QTreeWidgetItem* item,int column){Q_UNUSED(column)if(!left_->packet())return;const std::size_t index=item->data(0,Qt::UserRole).toULongLong(); /* index 为当前报告记录索引。 */if(index>=listedViolations_.size()||!violationSnapshot_)return;Canvas* destination=left_->packet()&&left_->packet()->snapshot==violationSnapshot_?left_:right_->packet()&&right_->packet()->snapshot==violationSnapshot_?right_:nullptr; /* destination为列表绑定源画布。 */if(!destination)return;const Violation& violation=listedViolations_[index]; /* violation 为完整定位信息。 */QSet<qulonglong> ids; /* ids 为受影响真实对象。 */for(NodeId id:violation.objectIds)ids.insert(id); /* id 为违规关联对象。 */destination->setSelection(ids);destination->locate(violation.region);statusBar()->showMessage(QString::fromStdString(violation.kind)+": "+QString::number(violation.magnitude,'g',15));});
+    connect(violations_,&QTreeWidget::itemDoubleClicked,this,[this](QTreeWidgetItem* item,int column){Q_UNUSED(column)if(!left_->packet())return;const std::size_t index=item->data(0,Qt::UserRole).toULongLong(); /* index 为当前报告记录索引。 */if(index>=listedViolations_.size()||!violationSnapshot_)return;Canvas* destination=inspectRight_?right_:left_; /* destination为明确检查侧，共用快照也不冒充另一侧。 */if(!destination->packet()||destination->packet()->snapshot!=violationSnapshot_)return;const Violation violation=listedViolations_[index]; /* violation为值副本，选择信号刷新列表后仍有效。 */QSet<qulonglong> ids; /* ids 为受影响真实对象。 */for(NodeId id:violation.objectIds)ids.insert(id); /* id 为违规关联对象。 */destination->setSelection(ids);destination->locate(violation.region);statusBar()->showMessage(QString::fromStdString(violation.kind)+": "+QString::number(violation.magnitude,'g',15));});
     auto* configPanel=new QWidget(this); ///< 单一高级参数编辑器，无第二套默认值。
     auto* configLayout=new QVBoxLayout(configPanel); ///< 参数布局。
     configLayout->addWidget(new QLabel(tr("共享配置 JSON：初始 / 全局 / 宏 / 标准 / 显示与导出\n修改后需重新运行，历史快照保留原配置。"),configPanel));configEditor_=new QPlainTextEdit(QString::fromStdString(SerializeConfig(config_)),configPanel);configEditor_->setObjectName("configEditor");applyConfig_=new QPushButton(tr("校验并应用"),configPanel);configLayout->addWidget(configEditor_);configLayout->addWidget(applyConfig_);configDock_=dock(*this,tr("统一配置（高级）"),configPanel,Qt::RightDockWidgetArea);configDock_->hide();viewMenu->addAction(configDock_->toggleViewAction());toolbar->addAction(configDock_->toggleViewAction());
@@ -227,7 +227,7 @@ void MainWindow::buildUi(){
     /** @brief 打开应用输出目录，捕获this；无参数、无返回值。 */
     connect(openOutput,&QAction::triggered,this,[this]{if(outputDirectory_.isEmpty()){log(tr("尚无运行输出目录"));return;}QDesktopServices::openUrl(QUrl::fromLocalFile(outputDirectory_));});
     connect(logFilter_,&QLineEdit::textChanged,this,&MainWindow::refreshLogs);connect(logLevel_,&QComboBox::currentIndexChanged,this,&MainWindow::refreshLogs);
-    metrics_=new QLabel(tr("无快照"),this);exportStatus_=new QLabel(this);statusBar()->addPermanentWidget(metrics_,1);statusBar()->addPermanentWidget(exportStatus_);
+    metrics_=new QLabel(tr("无快照"),this);metrics_->setObjectName("snapshotMetrics");exportStatus_=new QLabel(this);statusBar()->addPermanentWidget(metrics_,1);statusBar()->addPermanentWidget(exportStatus_);
     auto* help=menuBar()->addMenu(tr("帮助")); ///< 只读交互说明入口。
     auto* controls=help->addAction(tr("画布与 GDS 查看说明")); ///< 外部KLayout非强制依赖。
     /** @brief 显示可发现的只读操作说明，捕获this。无参数、无返回值。 */
@@ -297,6 +297,11 @@ void MainWindow::consume(){
         database_=batch.stages.front()->snapshot->database;
     }
     if(batch.preview&&!loading_&&batch.preview->snapshot->runId==runId_&&database_&&batch.preview->snapshot->datasetId==database_->datasetId)install(batch.preview,false);
+    // 终态可靠重装与主线程take可能交错；槽中已有后续阶段时，补入initial不能成为最后显示结果。
+    /** @brief 依公开阶段顺序安装有界批次，捕获为空。 @param a 左侧候选完整包。 @param b 右侧候选完整包。 @return a是否早于b，无副作用。 */
+    std::sort(batch.stages.begin(),batch.stages.end(),[](const auto& a,const auto& b){
+        return std::find(stageNames().begin(),stageNames().end(),a->snapshot->stage)<std::find(stageNames().begin(),stageNames().end(),b->snapshot->stage);
+    });
     for(const auto& packet:batch.stages){ // packet 为最多四个完成阶段。
         if(packet->snapshot->runId==runId_&&(!database_||packet->snapshot->datasetId==database_->datasetId))install(packet,true);
     }
@@ -348,11 +353,7 @@ void MainWindow::install(std::shared_ptr<const RenderPacket> packet,bool complet
     if(comparison_)right_->setPacket(packet);else left_->setPacket(packet);
     if(completed){QComboBox* selector=comparison_?rightStage_:leftStage_; /* selector为实际被替换画布的阶段选择。 */const QSignalBlocker blocked(selector); /* blocked防止安装同轮包时重复切换。 */selector->setCurrentIndex(selector->findData(QString::fromStdString(packet->snapshot->stage)));}
     else {QComboBox* selector=comparison_?rightStage_:leftStage_; /* selector为预览画布的选择器，完成阶段仍可重新选取。 */const QSignalBlocker blocked(selector); /* blocked防止预览占位触发阶段切换。 */selector->setPlaceholderText(tr("preview · i=%1").arg(packet->snapshot->iteration));selector->setCurrentIndex(-1);}
-    showViolations(*packet);properties(left_->selection());updateComparisonMetrics();
-    const Metrics& metric=packet->snapshot->metrics; ///< 同轮完整指标。
-    metrics_->setText(tr("%1 · i=%2 · HPWL %3 · overflow %4 · %5 ms").arg(QString::fromStdString(packet->snapshot->stage)).arg(packet->snapshot->iteration).arg(number(metric.hpwl),number(metric.overflow),number(metric.elapsedMs)));
-    const auto& db=*database_; ///< 当前只读输入。
-    summary_->setText(tr("dataset %1\n%2 nodes · %3 nets · %4 pins\n单位 %5 · %6\n输入审计 %7 项").arg(QString::fromStdString(db.datasetId).left(20)).arg(db.nodes.size()).arg(db.nets.size()).arg(db.pins.size()).arg(QString::fromStdString(db.unit)).arg(db.physicalScaleKnown?tr("真实 μm/DU=%1").arg(db.micronsPerDu):tr("物理比例未知，DU显示映射")).arg(db.inputFiles.size())+tr("\n准备策略 %1 · 位置调整 %2 项").arg(QString::fromStdString(sourceConfig(*packet->snapshot).initialMode)).arg(packet->snapshot->adjustments.size()));
+    refreshSnapshotUi(comparison_);
     if(!active(state_)&&!mainTask_.running())setState(RunState::Ready);
 }
 /** @brief 四阶段树只允许完整完成项。 */
@@ -374,12 +375,65 @@ void MainWindow::refreshStages(){
     leftStage_->setCurrentIndex(leftIndex>=0?leftIndex:0);rightStage_->setCurrentIndex(rightIndex>=0?rightIndex:rightStage_->count()-1);
 }
 /** @brief 显示选择的完整阶段，不改变原配置。 */
-void MainWindow::chooseStage(bool right){const std::string name=(right?rightStage_:leftStage_)->currentData().toString().toStdString(); /* name 为下拉绑定阶段。 */const auto found=stages_.find(name); /* found 为完成包。 */if(found==stages_.end())return;(right?right_:left_)->setPacket(found->second);showViolations(*found->second);if(!right)properties(left_->selection());updateComparisonMetrics();}
+void MainWindow::chooseStage(bool right){const std::string name=(right?rightStage_:leftStage_)->currentData().toString().toStdString(); /* name 为下拉绑定阶段。 */const auto found=stages_.find(name); /* found 为完成包。 */if(found==stages_.end())return;(right?right_:left_)->setPacket(found->second);refreshSnapshotUi(right);}
 /** @brief 单双视图切换默认initial与最新成功阶段，传递数学相机避免反馈循环。 */
-void MainWindow::toggleComparison(){if(!comparison_&&stages_.size()<2){log(tr("对比至少需要两个完整阶段"));return;}comparison_=!comparison_;right_->parentWidget()->setVisible(comparison_);if(comparison_){leftStage_->setCurrentIndex(leftStage_->findData(QStringLiteral("initial")));rightStage_->setCurrentIndex(rightStage_->count()-1);chooseStage(false);chooseStage(true);right_->setCamera(left_->camera());}else {if(active(state_)&&preview_)left_->setPacket(preview_);else chooseStage(false);}updateComparisonMetrics();}
+void MainWindow::toggleComparison(){
+    if(!comparison_&&stages_.size()<2){log(tr("对比至少需要两个完整阶段"));return;}
+    const Camera camera=left_->camera(); // 展开右侧前保存用户导航，右侧首次fit不得覆盖左侧相机。
+    comparison_=!comparison_;right_->parentWidget()->setVisible(comparison_);
+    if(comparison_){
+        const QSignalBlocker leftBlock(leftStage_); // 一次切换结束后统一刷新，避免中间状态成为属性源。
+        const QSignalBlocker rightBlock(rightStage_); // 同上，右侧阶段信号暂不单独刷新。
+        leftStage_->setCurrentIndex(std::max(0,leftStage_->findData(QStringLiteral("initial"))));
+        rightStage_->setCurrentIndex(rightStage_->count()-1);
+        left_->setPacket(stages_.at(leftStage_->currentData().toString().toStdString()));
+        right_->setPacket(stages_.at(rightStage_->currentData().toString().toStdString()));
+        left_->setCamera(camera);right_->setCamera(camera);
+    }else {
+        if(active(state_)&&preview_)left_->setPacket(preview_);
+        else {const auto found=stages_.find(leftStage_->currentData().toString().toStdString()); /* found为单视图选定完成阶段。 */if(found!=stages_.end())left_->setPacket(found->second);}
+    }
+    refreshSnapshotUi(comparison_);
+}
+/** @brief 从实际显示包统一刷新指标、摘要、检查面板与比较表；契约见声明。 @param right 请求检查右侧，单视图自动使用左侧。 无返回值。 */
+void MainWindow::refreshSnapshotUi(bool right){
+    inspectRight_=comparison_&&right;
+    const auto left=left_->packet(); // 左侧当前实际显示包，允许预览。
+    const auto other=comparison_?right_->packet():nullptr; // 仅可见右侧参与指标与摘要。
+    /** @brief 格式化单个源的完整同轮身份和指标。 @param packet 实际显示包，可空。 @return 人类可读文本。 */
+    const auto describe=[this](const std::shared_ptr<const RenderPacket>& packet){
+        if(!packet)return tr("无快照");
+        const Snapshot& snapshot=*packet->snapshot; // 阶段、迭代与指标的唯一来源。
+        return tr("%1 · i=%2 · HPWL %3 · overflow %4 · %5 ms")
+            .arg(QString::fromStdString(snapshot.stage)).arg(snapshot.iteration)
+            .arg(number(snapshot.metrics.hpwl),number(snapshot.metrics.overflow),number(snapshot.metrics.elapsedMs));
+    };
+    metrics_->setText(comparison_?tr("左：%1\n右：%2").arg(describe(left),describe(other)):describe(left));
+    if(left){
+        const auto& db=*left->snapshot->database; // 项目基本统计取自当前左源数据库。
+        QString text=tr("dataset %1\n%2 nodes · %3 nets · %4 pins\n单位 %5 · %6\n输入审计 %7 项")
+            .arg(QString::fromStdString(db.datasetId).left(20)).arg(db.nodes.size()).arg(db.nets.size()).arg(db.pins.size())
+            .arg(QString::fromStdString(db.unit)).arg(db.physicalScaleKnown?tr("真实 μm/DU=%1").arg(db.micronsPerDu):tr("物理比例未知，DU显示映射")).arg(db.inputFiles.size()); // 数据集摘要，后续逐侧追加快照字段。
+        /** @brief 追加一侧的快照身份和准备信息。 @param label 可见视图名称。 @param packet 对应只读显示包，可空。 无返回值，修改text。 */
+        const auto append=[this,&text](const QString& label,const std::shared_ptr<const RenderPacket>& packet){
+            if(!packet)return;
+            const Snapshot& snapshot=*packet->snapshot; // 本侧摘要快照。
+            text+=tr("\n%1 %2 · i=%3 · r=%4\n准备策略 %5 · 位置调整 %6 项")
+                .arg(label,QString::fromStdString(snapshot.stage)).arg(snapshot.iteration).arg(snapshot.revision)
+                .arg(QString::fromStdString(sourceConfig(snapshot).initialMode)).arg(snapshot.adjustments.size());
+        };
+        append(comparison_?tr("左视图"):tr("当前视图"),left);if(comparison_)append(tr("右视图"),other);
+        summary_->setText(text);
+    }else summary_->setText(tr("尚未打开数据集"));
+    Canvas* inspected=inspectRight_?right_:left_; // 属性与违规明确共用当前检查侧。
+    properties(inspected->selection());
+    if(inspected->packet())showViolations(*inspected->packet());
+    updateComparisonMetrics();updateLayers();
+}
 /** @brief 比较已计算指标，无输入无返回值；不在主线程重新计算全网线长。 */
 void MainWindow::updateComparisonMetrics(){
     comparisonTable_->clear();if(!comparison_||!left_->packet()||!right_->packet())return;
+    comparisonTable_->setHeaderLabels({tr("指标"),tr("左：%1").arg(QString::fromStdString(left_->packet()->snapshot->stage)),tr("右：%1").arg(QString::fromStdString(right_->packet()->snapshot->stage)),tr("右−左"),tr("改善率")});
     const Snapshot& left=*left_->packet()->snapshot; // 左侧完整身份与指标。
     const Snapshot& right=*right_->packet()->snapshot; // 右侧独立阶段。
     if(left.datasetId!=right.datasetId)return;
@@ -397,12 +451,13 @@ void MainWindow::updateComparisonMetrics(){
 void MainWindow::properties(QSet<qulonglong> ids){
     ++networkRequest_;pendingNetwork_.reset();networkTask_.cancel();left_->setNetwork({});right_->setNetwork({});attributes_->clear();const QSignalBlocker blocked(networks_); ///< 防止重建所属网络时启动任务。
     networks_->clear();networks_->addItem(tr("隐藏网络高亮"),-1);
-    const auto packet=left_->packet(); ///< 当前主画布快照。
+    const auto packet=(inspectRight_?right_:left_)->packet(); ///< 当前检查侧的实际快照。
     if(!packet||ids.isEmpty())return;
     const NodeId id=*std::min_element(ids.begin(),ids.end()); ///< 多选时展示最小稳定ID对象。
     if(id>=packet->boxes.size())return;
     const Node& node=packet->snapshot->database->nodes[id]; ///< 当前只读节点。
     const Rect rect=packet->boxes[id]; ///< 同轮物理包围盒。
+    addProperty(*attributes_,tr("源快照"),(inspectRight_?tr("右视图 "):tr("左视图 "))+QString::fromStdString(packet->snapshot->stage)+tr(" · i=%1 · r=%2").arg(packet->snapshot->iteration).arg(packet->snapshot->revision));
     addProperty(*attributes_,tr("选中数量"),QString::number(ids.size()));addProperty(*attributes_,tr("ID"),QString::number(id));addProperty(*attributes_,tr("名称"),QString::fromStdString(node.name));addProperty(*attributes_,tr("类别"),node.kind==NodeKind::Macro?"Macro":node.kind==NodeKind::Terminal?"Terminal":"Standard");addProperty(*attributes_,tr("固定"),node.fixed?"true":"false");
     addProperty(*attributes_,tr("ll (DU)"),QString::number(rect.lx,'g',17)+", "+QString::number(rect.ly,'g',17));addProperty(*attributes_,tr("center (DU)"),QString::number((rect.lx+rect.ux)/2,'g',17)+", "+QString::number((rect.ly+rect.uy)/2,'g',17));addProperty(*attributes_,tr("width × height (DU)"),QString::number(rect.width(),'g',17)+" × "+QString::number(rect.height(),'g',17));addProperty(*attributes_,tr("方向"),QString::fromStdString(orientationName(packet->snapshot->positions[id].orientation)));
     const auto& nets=packet->topology->nodeNets[id]; ///< 后台预建的所属网络，主线程不扫全部引脚。
@@ -434,7 +489,15 @@ void MainWindow::findName(bool reset){
 /** @brief 重建最多1000条独立违规，并显示完整计数。 */
 void MainWindow::showViolations(const RenderPacket& packet){
     violationSnapshot_=packet.snapshot;listedViolations_=packet.violations.records;violations_->clear();
-    if(violationFilter_->count()<=1){const QSignalBlocker blocked(violationFilter_); /* blocked 防止过滤重入。 */for(const auto& count:packet.violations.countByType)violationFilter_->addItem(QString::fromStdString(count.first)); /* count 为类型和完整计数。 */}
+    const QString source=(inspectRight_?tr("右视图 "):tr("左视图 "))+QString::fromStdString(packet.snapshot->stage)+tr(" · i=%1 · r=%2").arg(packet.snapshot->iteration).arg(packet.snapshot->revision); // 空报告也可辨识检查源。
+    violations_->headerItem()->setText(0,tr("类型 · %1").arg(source));
+    violations_->setToolTip(source+tr("\n总计 %1，已列出 %2%3").arg(packet.violations.totalCount).arg(packet.violations.records.size()).arg(packet.violations.truncated?tr("（详情已截断）"):QString()));
+    const QString previousFilter=violationFilter_->currentIndex()>0?violationFilter_->currentText():QString(); // 尽量保留本源仍支持的过滤类型。
+    const QSignalBlocker blocked(violationFilter_); // 重建类型列表不递归刷新报告。
+    violationFilter_->clear();violationFilter_->addItem(tr("全部类型"));
+    for(const auto& count:packet.violations.countByType)violationFilter_->addItem(QString::fromStdString(count.first)); // count为当前快照完整违规类型计数。
+    const int filterIndex=violationFilter_->findText(previousFilter); // 原类型在新源不存在时回到全部，避免空报告误导。
+    violationFilter_->setCurrentIndex(filterIndex>0?filterIndex:0);
     const QString filter=violationFilter_->currentIndex()>0?violationFilter_->currentText():QString(); ///< 当前可选类型。
     for(std::size_t i=0;i<packet.violations.records.size();++i){ // i 为有界详情记录索引。
         const auto& record=packet.violations.records[i]; ///< 同轮独立检查违规。
