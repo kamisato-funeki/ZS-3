@@ -36,7 +36,7 @@
 namespace placement::gui {
 namespace {
 /** @brief 可选数值的人类显示。 @param value 可空数值。 @return 保留12位有效数字，空为破折号。 */
-QString number(std::optional<double> value){return value?QString::number(*value,'g',12):QStringLiteral("—");}
+QString number(std::optional<double> value){return value&&std::isfinite(*value)?QString::number(*value,'g',12):QStringLiteral("—");}
 /** @brief 给主窗口添加可停靠组件。 @param window 主线程窗口。 @param title 面板标题。 @param widget 被接管组件。 @param area 停靠区域。 @return 主窗口拥有的Dock。 */
 QDockWidget* dock(QMainWindow& window,const QString& title,QWidget* widget,Qt::DockWidgetArea area){auto* result=new QDockWidget(title,&window); /* result 为主线程父所有的停靠面板。 */result->setWidget(widget);window.addDockWidget(area,result);return result;}
 /** @brief 创建只读两列表。 @param headers 列名。 @param parent 父控件。 @return 父对象拥有的树表。 */
@@ -63,25 +63,35 @@ void ConvergencePlot::paintEvent(QPaintEvent* event){
     painter.fillRect(rect(),QColor(23,31,42));painter.setRenderHint(QPainter::Antialiasing);
     for(int panel=0;panel<2;++panel){ // panel 为HPWL/overflow分图编号。
         const QRectF area(55,panel*height()/2.0+20,std::max(1,width()-75),height()/2.0-30); ///< 独立坐标图区域px。
-        painter.setPen(QColor(160,177,192));painter.drawRect(area);painter.drawText(QPointF(8,area.top()+12),panel==0?QStringLiteral("HPWL"):QStringLiteral("overflow"));
-        double maximum=panel==0?1:0.1; ///< 当前分图纵轴最大值，单位独立。
-        for(const MetricPoint& point:points_)maximum=std::max(maximum,panel==0?point.metrics.hpwl.value_or(0):point.metrics.overflow.value_or(0)); // point 为历史小指标。
-        painter.drawText(QPointF(area.left(),area.top()-3),QString::number(maximum,'g',5)+(panel==0?QStringLiteral(" DU"):QString()));
-        if(points_.size()<2)continue;
-        QPainterPath path; ///< 当前分图折线路径。
-        std::string previousStage; ///< 用于画阶段标记。
-        for(std::size_t i=0;i<points_.size();++i){ // i 为有界曲线点序号。
-            const MetricPoint& point=points_[i]; ///< 当前历史点。
-            const double value=panel==0?point.metrics.hpwl.value_or(0):point.metrics.overflow.value_or(0); ///< 对应单位的指标。
-            const QPointF pixel(area.left()+i*area.width()/(points_.size()-1),area.bottom()-value/maximum*area.height()); ///< 分图像素点。
-            if(i==0)path.moveTo(pixel);else path.lineTo(pixel);
-            if(point.stage!=previousStage){painter.setPen(QPen(QColor(96,114,135),1,Qt::DashLine));painter.drawLine(QPointF(pixel.x(),area.top()),QPointF(pixel.x(),area.bottom()));previousStage=point.stage;}
+        painter.setBrush(Qt::NoBrush);painter.setPen(QColor(160,177,192));painter.drawRect(area);painter.drawText(QPointF(8,area.top()+12),panel==0?QStringLiteral("HPWL"):QStringLiteral("overflow"));
+        std::optional<double> maximum; // 仅有效指标参与纵轴上界，全部缺失时保持空。
+        for(const MetricPoint& point:points_){ // point为历史同轮小指标。
+            const auto value=panel==0?point.metrics.hpwl:point.metrics.overflow; // 分图独立单位的可空值。
+            if(value&&std::isfinite(*value))maximum=maximum?std::max(*maximum,*value):*value;
         }
-        painter.setPen(QPen(panel==0?QColor(76,188,214):QColor(236,172,86),1.5));painter.drawPath(path);
+        painter.drawText(QPointF(area.left(),area.top()-3),number(maximum)+(panel==0?QStringLiteral(" DU"):QString()));
+        const double scale=maximum&&*maximum>0?*maximum:1; // 全零序列仍需要非零坐标尺度，不增加任何数据点。
+        QPainterPath path; // 每个连续有效区间独立moveTo，不跨缺失段连线。
+        std::vector<QPointF> samples; // 有效点像素坐标，单点也画标记。
+        bool connected=false; // 上一历史点是否允许与当前有效点连接。
+        std::string previousStage; // 阶段分隔与值是否存在相互独立。
+        for(std::size_t i=0;i<points_.size();++i){ // i为有界历史序号，缺失点仍占时间轴位置。
+            const MetricPoint& point=points_[i]; // 当前历史同轮指标。
+            const double x=area.left()+i*area.width()/std::max<std::size_t>(1,points_.size()-1); // 横坐标，逻辑px。
+            if(point.stage!=previousStage){painter.setPen(QPen(QColor(96,114,135),1,Qt::DashLine));painter.drawLine(QPointF(x,area.top()),QPointF(x,area.bottom()));previousStage=point.stage;}
+            const auto value=panel==0?point.metrics.hpwl:point.metrics.overflow; // null不参与范围或路径，0保持有效。
+            if(!value||!std::isfinite(*value)){connected=false;continue;}
+            const QPointF pixel(x,area.bottom()-*value/scale*area.height()); // 当前有效数据的分图像素。
+            if(connected&&!point.breakBefore[panel])path.lineTo(pixel);else path.moveTo(pixel);
+            connected=true;samples.push_back(pixel);
+        }
+        const QColor color=panel==0?QColor(76,188,214):QColor(236,172,86); // 两种单位使用不同填色。
+        painter.setPen(QPen(color,1.5));painter.drawPath(path);painter.setBrush(color);
+        for(const QPointF& sample:samples)painter.drawEllipse(sample,2,2); // sample为有效点；全部缺失时不画标记。
     }
 }
 /** @brief 悬停最近点使用完整指标，不混轴。 */
-void ConvergencePlot::mouseMoveEvent(QMouseEvent* event){if(points_.empty())return;const std::size_t index=static_cast<std::size_t>(std::clamp((event->position().x()-55)/std::max(1,width()-75),0.0,1.0)*(points_.size()-1)); /* index 为最近时间序号。 */const auto& point=points_[index]; /* point 为只读指标。 */QToolTip::showText(event->globalPosition().toPoint(),QString::fromStdString(point.stage)+tr(" · iteration %1\nHPWL %2 DU\noverflow %3").arg(point.iteration).arg(number(point.metrics.hpwl)).arg(number(point.metrics.overflow)),this);}
+void ConvergencePlot::mouseMoveEvent(QMouseEvent* event){if(points_.empty())return;const std::size_t index=static_cast<std::size_t>(std::llround(std::clamp((event->position().x()-55)/std::max(1,width()-75),0.0,1.0)*(points_.size()-1))); /* index 为最近时间序号。 */const auto& point=points_[index]; /* point 为只读指标。 */QToolTip::showText(event->globalPosition().toPoint(),QString::fromStdString(point.stage)+tr(" · iteration %1\nHPWL %2 DU\noverflow %3").arg(point.iteration).arg(number(point.metrics.hpwl)).arg(number(point.metrics.overflow)),this);}
 /** @brief 构造主线程窗口和可协作停止的控制器。 */
 MainWindow::MainWindow(QWidget* parent):QMainWindow(parent),mainTask_(this),exportTask_(this),heatTask_(this),networkTask_(this){
     buildUi();resize(1440,900);setMinimumSize(1024,720);setWindowTitle(tr("布局实验室 · 只读分析与布局流水线"));

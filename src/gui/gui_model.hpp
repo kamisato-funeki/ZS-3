@@ -97,6 +97,7 @@ std::vector<NodeId> HitTest(const RenderPacket& packet,Vec2 point,double toleran
 struct MetricPoint { std::uint64_t iteration=0; ///< 迭代号。
     Metrics metrics; ///< 同轮指标。
     std::string stage; ///< 阶段标记。
+    std::array<bool,2> breakBefore{}; ///< 仅GUI压缩信息：HPWL/overflow在此前被丢弃区间含缺失值，不得跨越连接。
 };
 /** @brief 200ms定时消费的有界邮件批次，终态不经过可覆盖预览槽。 */
 struct MailBatch {
@@ -142,7 +143,7 @@ private:
     bool terminated_=false; ///< 保证终态只写一次。
     MailBatch batch_; ///< 有界待消费数据。
 };
-/** @brief 合并曲线旧点时保留overflow极值并始终保留末点。
+/** @brief 合并曲线旧点时保留两种单位的有效极值、阶段与缺失断段，并始终保留末点。
  * @param points 可变曲线点，最多保留5000。 无返回值。 */
 void CompactMetrics(std::deque<MetricPoint>& points);
 } // namespace placement::gui

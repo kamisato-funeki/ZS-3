@@ -91,29 +91,49 @@ std::vector<NodeId> HitTest(const RenderPacket& packet,Vec2 point,double toleran
         return a<b;
     });return result;
 }
-/** @brief 压缩曲线旧点；先按成对时间桶保留HPWL/overflow偏离均值更大的点，最新点不丢。 */
+/** @brief 压缩旧时间桶并保留有效极值；被丢弃的缺失点通过断段标志传播，不伪造零值。
+ * @param points 原地更新的GUI历史队列，契约见声明。 无返回值，不修改Snapshot或CSV。 */
 void CompactMetrics(std::deque<MetricPoint>& points) {
     while(points.size()>5000) {
-        std::deque<MetricPoint> compressed; ///< 压缩后的时间桶极值。
-        const std::size_t boundary=points.size()/2; ///< 近期一半完整保留。
-        for(std::size_t begin=0;begin<boundary;begin+=8){ // begin 为旧段八点桶起始。
-            const std::size_t end=std::min(boundary,begin+8); ///< 桶末端开区间。
-            std::set<std::size_t> keep{begin,end-1}; ///< 保留桶两端和两个单位各自极值。
-            for(int metric=0;metric<2;++metric){ // metric 为HPWL或overflow。
-                std::size_t minimum=begin; ///< 最小指标位置。
-                std::size_t maximum=begin; ///< 最大指标位置。
-                for(std::size_t i=begin+1;i<end;++i){ // i 为桶内点序号。
-                    const double value=metric==0?points[i].metrics.hpwl.value_or(0):points[i].metrics.overflow.value_or(0); ///< 当前单位的值。
-                    const double low=metric==0?points[minimum].metrics.hpwl.value_or(0):points[minimum].metrics.overflow.value_or(0); ///< 当前最小值。
-                    const double high=metric==0?points[maximum].metrics.hpwl.value_or(0):points[maximum].metrics.overflow.value_or(0); ///< 当前最大值。
-                    if(value<low)minimum=i;
-                    if(value>high)maximum=i;
+        const std::size_t boundary=points.size()/2; // 近期一半完整保留。
+        std::set<std::size_t> keep; // 按原时间序号排序的保留点。
+        for(std::size_t begin=0;begin<boundary;begin+=8){ // begin为旧段八点桶起始。
+            const std::size_t end=std::min(boundary,begin+8); // 桶末端开区间。
+            keep.insert(begin);keep.insert(end-1);
+            for(int metric=0;metric<2;++metric){ // metric为HPWL或overflow。
+                std::optional<double> low; // 本桶有效最小值；空桶不造极值。
+                std::optional<double> high; // 本桶有效最大值。
+                for(std::size_t i=begin;i<end;++i){ // i为桶内原始时间序号。
+                    const auto value=metric==0?points[i].metrics.hpwl:points[i].metrics.overflow; // 本单位可空值。
+                    if(!value||!std::isfinite(*value))continue;
+                    if(!low||*value<*low)low=value;
+                    if(!high||*value>*high)high=value;
                 }
-                keep.insert(minimum);keep.insert(maximum);
+                bool keptLow=false; // 同值极值只需保留一个位置。
+                bool keptHigh=false; // 同值极值只需保留一个位置。
+                for(std::size_t i=begin;i<end;++i){ // i为本桶极值候选序号。
+                    const auto value=metric==0?points[i].metrics.hpwl:points[i].metrics.overflow; // 候选可空指标。
+                    if(value&&low&&*value==*low&&!keptLow){keep.insert(i);keptLow=true;}
+                    if(value&&high&&*value==*high&&!keptHigh){keep.insert(i);keptHigh=true;}
+                }
             }
-            for(std::size_t i:keep)compressed.push_back(points[i]); // i 为按时间顺序保留的极值。
         }
-        compressed.insert(compressed.end(),points.begin()+static_cast<std::ptrdiff_t>(boundary),points.end());points=std::move(compressed);
+        for(std::size_t i=boundary;i<points.size();++i)keep.insert(i); // i为不压缩的近期序号。
+        std::set<std::string> markedStages; // 四个正式阶段的首次出现位置，不能随旧桶压掉阶段分隔。
+        for(std::size_t i=0;i<boundary;++i){ // i为旧段时间序号；正式阶段最多四种，额外保留仍有界。
+            const std::string& stage=points[i].stage; // 此历史点的阶段身份。
+            if((stage=="initial"||stage=="global"||stage=="macro_legal"||stage=="standard_legal")&&markedStages.insert(stage).second)keep.insert(i);
+        }
+        std::deque<MetricPoint> compressed; // 不持有坐标的压缩显示历史。
+        std::array<bool,2> gap{}; // 各单位从上一保留点以来是否经过缺失或旧断段。
+        for(std::size_t i=0;i<points.size();++i){ // i为原序号，逐点累积被压掉的缺失信息。
+            const MetricPoint& point=points[i]; // 当前原始或已压缩的GUI指标。
+            gap[0]=gap[0]||point.breakBefore[0]||!point.metrics.hpwl||!std::isfinite(*point.metrics.hpwl);
+            gap[1]=gap[1]||point.breakBefore[1]||!point.metrics.overflow||!std::isfinite(*point.metrics.overflow);
+            if(!keep.count(i))continue;
+            compressed.push_back(point);compressed.back().breakBefore=gap;gap={};
+        }
+        points=std::move(compressed);
     }
 }
 /** @brief 重置邮箱身份，参数契约见头文件。 */
