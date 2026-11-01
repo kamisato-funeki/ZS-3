@@ -8,6 +8,11 @@ execute_process(COMMAND git -c "safe.directory=${LIMBO_SOURCE_DIR}" -C "${LIMBO_
 if(NOT limbo_actual STREQUAL LIMBO_COMMIT)
   message(FATAL_ERROR "Limbo revision mismatch: expected ${LIMBO_COMMIT}, got ${limbo_actual}")
 endif()
+# find_program 会直接复用缓存；已被清理的临时工具路径必须重新查找。
+if(BISON_EXECUTABLE AND NOT EXISTS "${BISON_EXECUTABLE}")
+  unset(BISON_EXECUTABLE CACHE)
+  unset(BISON_EXECUTABLE)
+endif()
 find_program(BISON_EXECUTABLE bison HINTS "${PLACEMENT_DEPS_PREFIX}/bin" REQUIRED)
 foreach(format lef def)
   set(parser_root "${LIMBO_SOURCE_DIR}/limbo/thirdparty/lefdef/5.8/${format}/${format}")

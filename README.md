@@ -117,9 +117,29 @@ cmake --build --preset headless --parallel 2
 
 预设同样允许附加 `-DPLACEMENT_DEPS_PREFIX=...` 等配置参数。完整定义见 [CMakePresets.json](CMakePresets.json)。
 
+**已有构建缓存指向失效临时依赖时：** 若出现 Qt 的 `INTERFACE_INCLUDE_DIRECTORIES` 引用
+`/tmp/school3-deps/usr/include` 不存在，或生成 LEF/DEF 解析器时出现 `no such file or directory`，
+说明旧缓存仍保存临时依赖/Bison 的绝对路径。重复原配置命令不会清除这些值。
+本机已安装系统开发包时，可执行以下命令重新发现依赖；显式选择系统 GoogleTest 和 JSON，
+也可避免 Miniconda GoogleTest 引入的 `libcrypto.so.3` 运行库路径冲突：
+
+```sh
+cmake --fresh -S . -B build/default -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_GUI=ON -DBUILD_TESTING=ON -DPLACEMENT_DEPS_PREFIX= \
+  -DGTest_DIR=/usr/lib/x86_64-linux-gnu/cmake/GTest \
+  -Dnlohmann_json_DIR=/usr/share/cmake/nlohmann_json && \
+cmake --build build/default --parallel 2
+ctest --test-dir build/default --output-on-failure
+```
+
+`--fresh` 需要 CMake 3.24 或以上；3.21–3.23 可先移除构建目录下的 `CMakeCache.txt`
+和 `CMakeFiles/`，再运行去掉 `--fresh` 的配置命令。上述包路径适用于本机 Ubuntu amd64。
+若继续使用本地解包依赖，应先按2.2节恢复前缀，再用其实际路径重新配置。
+配置与编译使用 `&&` 连接，确保配置失败时不会继续构建旧的 Makefile。
+
 ### 2.4 本开发环境的启动命令
 
-本机已安装系统开发包，当前使用系统 FFTW、OpenSSL、nlohmann/json、GoogleTest 和 Qt 6。由于 hgfs 共享目录的符号链接和对象文件读回限制，**当前验证构建目录为 `/tmp/school3-system-check`，同时包含 GUI 和 CLI**。
+本机已安装系统开发包，当前使用系统 FFTW、OpenSSL、nlohmann/json、GoogleTest 和 Qt 6。2026-10-26 因 hgfs 共享目录的符号链接和对象文件读回限制，验证构建使用 `/tmp/school3-system-check`，同时包含 GUI 和 CLI。2026-11-01 按2.3节清理失效缓存后，项目内 `build/default` 也已成功构建，85/85 项 CTest 通过；若共享目录再次出现文件系统错误，仍可使用下面的 `/tmp` 构建方式。
 
 `/tmp` 是 Linux 根目录下的临时目录，不在项目目录内。可以在文件管理器按 `Ctrl+L`，输入 `/tmp/school3-system-check` 查看；临时目录被清理后需要重新构建。
 

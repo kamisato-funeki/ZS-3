@@ -10,6 +10,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # 用户可显式指定系统包的本地解压前缀，保持源码与机器路径分离。
 set(PLACEMENT_DEPS_PREFIX "" CACHE PATH "Locally extracted development-package prefix")
 if(PLACEMENT_DEPS_PREFIX)
+  # 临时解包目录被清理后应在发现依赖前报错，避免生成含失效路径的 Qt 目标。
+  if(NOT IS_DIRECTORY "${PLACEMENT_DEPS_PREFIX}/include")
+    message(FATAL_ERROR
+      "PLACEMENT_DEPS_PREFIX is missing development headers: ${PLACEMENT_DEPS_PREFIX}/include. "
+      "Restore the dependency prefix, or clear CMakeCache.txt and CMakeFiles in the build directory "
+      "and reconfigure with -DPLACEMENT_DEPS_PREFIX= to use system packages. "
+      "With CMake >= 3.24, use cmake --fresh instead of clearing these files manually.")
+  endif()
   list(PREPEND CMAKE_PREFIX_PATH "${PLACEMENT_DEPS_PREFIX}")
   include_directories(SYSTEM "${PLACEMENT_DEPS_PREFIX}/include")
 endif()
